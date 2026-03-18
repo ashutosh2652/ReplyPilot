@@ -1,6 +1,6 @@
-import app from "./src/app";
-import { connectdb, disconnectdb } from "./src/config/db";
-import { env } from "./src/config/env";
+import app from "./src/app.js";
+import { connectdb, disconnectdb } from "./src/config/db.js";
+import { env } from "./src/config/env.js";
 
 let server;
 connectdb()
