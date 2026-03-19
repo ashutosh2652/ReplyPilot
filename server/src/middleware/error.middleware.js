@@ -1,4 +1,5 @@
-import { config } from "../config/env.js";
+import { env } from "../config/env.js";
+
 function globalErrorHandler(error, req, res, next) {
     error.statusCode = error.statusCode || 500;
     error.message = error.message || "Internal Server Error";
@@ -7,7 +8,7 @@ function globalErrorHandler(error, req, res, next) {
         return res.status(error.statusCode).json({
             success: false,
             message: error.message,
-            ...(config.NODE_ENV === "development" && {
+            ...(env.NODE_ENV === "development" && {
                 stack: error.stack || null,
             }),
         });
