@@ -12,3 +12,6 @@ const oauth2Client = new google.auth.OAuth2(
 console.log("redirect uri",process.env.GOOGLE_REDIRECT_URI);
 
 export default oauth2Client;
+
+
+
