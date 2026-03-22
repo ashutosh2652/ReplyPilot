@@ -20,9 +20,11 @@ const envSchema=z.object({
     .transform((val) => val.split(",").map((url) => url.trim())),
     
     CLIENT_URL:z.string().default('http://localhost:5173'),
+    AI_SERVICE_URL:z.string().default('http://localhost:8000'),
 
     REDIS_URL: z.string().min(1,'REDIS_URL is required!'),
 
+    YOUTUBE_API_KEY:z.string().min(1,'YOUTUBE_API_KEY is required'),
 });
 
 const parsed=envSchema.safeParse(process.env);
