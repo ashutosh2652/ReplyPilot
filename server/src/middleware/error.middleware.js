@@ -12,7 +12,7 @@ function globalErrorHandler(error, req, res, next) {
   if (error?.response?.data?.error?.code === 403) {
     return res.status(403).json({
       error: 'YouTube API quota exceeded or permission denied',
-      details: err.response.data.error.message,
+      details: error.response.data.error.message,
     });
   }
 
