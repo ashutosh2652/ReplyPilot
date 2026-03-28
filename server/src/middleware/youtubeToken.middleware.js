@@ -4,7 +4,7 @@ import User from "../models/User.models.js";
 import { env } from "../config/env.js";
 import logger from "../utils/logger.js";
 
-// 1️⃣ Create the "Memory Board" at the top of the file, completely outside the middleware function
+//"Memory Board" 
 const ongoingRefreshPromises = new Map(); 
 
 export default async function(req,res,next){
@@ -33,7 +33,7 @@ export default async function(req,res,next){
             });
         }
 
-        // 2️⃣ Check if another request is ALREADY refreshing the token right now!
+        // Check if another request is ALREADY refreshing the token right now!
         if (ongoingRefreshPromises.has(userId)) {
             logger.debug(`Request for user ${userId} is waiting for an ongoing refresh to finish...`);
             // Wait for the leader (Request #1) to finish, grab the token it fetched, and proceed immediately!
