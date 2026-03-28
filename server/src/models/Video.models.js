@@ -30,7 +30,7 @@ const VideoSchema=new mongoose.Schema(
             default:String,
             medium:String,
             high:String,
-            maxred:String,
+            maxres:String,
         },
         viewCount:{type:Number,default:0},
         likeCount:{type:Number,default:0},

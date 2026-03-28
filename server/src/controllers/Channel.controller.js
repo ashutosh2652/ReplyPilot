@@ -1,4 +1,4 @@
-import { getChannelInfo } from "../services/youtube.service.js";
+import { getChannelInfo } from "../services/Channel.service.js";
 import { ApiError } from "../utils/ApiError.js";
 
 import Channel from "../models/Channel.models.js";
@@ -9,7 +9,7 @@ import {
   getChannelVideosInfo,
   getVideoInfo,
   getVideoCommentsInfo
-} from "../services/youtube.service.js";
+} from "../services/Channel.service.js";
 
 export const fetchChannel = async (req, res) => {
 
