@@ -49,27 +49,31 @@ export async function getValidYoutubeToken(userId) {
     );
     oauth2Client.setCredentials({ refresh_token: user.refreshToken });
 
-    // 4. We are Request #1 (the leader). Leave "IOU note" on board.
-    const refreshPromise = oauth2Client.refreshAccessToken().then(async ({ credentials }) => {
-        const newAccessToken = credentials.access_token;
-        const newExpiresAt = credentials.expiry_date ?? Date.now() + 60 * 60 * 1000;
-        const ttlSeconds = Math.floor((newExpiresAt - Date.now()) / 1000);
+    // 4. We are Request #1 (the leader). Register the IOU note BEFORE the async
+    //    work begins so any concurrent caller that reaches the has() check above
+    //    immediately receives this same promise (zero-window race condition fix).
+    const refreshPromise = new Promise((resolve, reject) => {
+        oauth2Client.refreshAccessToken()
+            .then(async ({ credentials }) => {
+                const newAccessToken = credentials.access_token;
+                const newExpiresAt = credentials.expiry_date ?? Date.now() + 60 * 60 * 1000;
+                const ttlSeconds = Math.floor((newExpiresAt - Date.now()) / 1000);
 
-        await redis.set(keys.ytAccessToken(userId), newAccessToken, { EX: ttlSeconds });
-        await redis.set(keys.ytTokenExpiry(userId), String(newExpiresAt), { EX: ttlSeconds });
+                await redis.set(keys.ytAccessToken(userId), newAccessToken, { EX: ttlSeconds });
+                await redis.set(keys.ytTokenExpiry(userId), String(newExpiresAt), { EX: ttlSeconds });
 
-        logger.debug('Access Token refreshed for user:', userId);
-        
-        // 5. Done refreshing. Remove IOU note.
-        ongoingRefreshPromises.delete(userId); 
-        
-        return newAccessToken; 
-    }).catch(error => {
-        // Remove broken IOU on failure
-        ongoingRefreshPromises.delete(userId);
-        throw error;
+                logger.debug('Access Token refreshed for user:', userId);
+                resolve(newAccessToken);
+            })
+            .catch(reject);
     });
 
+    // Register synchronously — new Promise() construction is synchronous, so this
+    // line runs before any microtask from the executor above can be scheduled.
     ongoingRefreshPromises.set(userId, refreshPromise);
+
+    // 5. Clean up on both settle paths so the map never leaks a stale entry.
+    refreshPromise.finally(() => ongoingRefreshPromises.delete(userId));
+
     return await refreshPromise;
 }
