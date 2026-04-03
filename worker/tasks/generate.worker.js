@@ -1,11 +1,11 @@
 import { Worker } from 'bullmq';
-import { env } from '../config/env.js';
-import { bullConnection } from '../config/redis.js';
-import Comment from '../models/Comment.models.js';
-import Reply from '../models/Reply.models.js';
-import Persona from '../models/Persona.models.js';
-import httpClient from '../utils/httpClient.js';
-import logger from '../utils/logger.js';
+import { env } from '../../server/src/config/env.js';
+import { bullConnection } from '../../server/src/config/redis.js';
+import Comment from '../../server/src/models/Comment.models.js';
+import Reply from '../../server/src/models/Reply.models.js';
+import Persona from '../../server/src/models/Persona.models.js';
+import httpClient from '../../server/src/utils/httpClient.js';
+import logger from '../../server/src/utils/logger.js';
 
 export const generateWorker = new Worker(
   'generate',
@@ -72,7 +72,7 @@ export const generateWorker = new Worker(
     }
   },
   {
-    connection: { client: bullConnection },
+    connection: bullConnection,
     prefix: env.REDIS_BULL_PREFIX,
     concurrency: 5,
   }

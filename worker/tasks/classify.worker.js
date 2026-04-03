@@ -1,9 +1,9 @@
 import { Worker } from 'bullmq';
-import { env } from '../config/env.js';
-import { bullConnection } from '../config/redis.js';
-import Comment from '../models/Comment.models.js';
-import httpClient from '../utils/httpClient.js';
-import logger from '../utils/logger.js';
+import { env } from '../../server/src/config/env.js';
+import { bullConnection } from '../../server/src/config/redis.js';
+import Comment from '../../server/src/models/Comment.models.js';
+import httpClient from '../../server/src/utils/httpClient.js';
+import logger from '../../server/src/utils/logger.js';
 
 export const classifyWorker = new Worker(
   'classify',
@@ -23,7 +23,8 @@ export const classifyWorker = new Worker(
         text: comment.text,
       });
 
-      const { intent = 'neutral', confidence = null, isSpam = false } = aiResponse.data;
+      const { intent = 'neutral', confidence = null } = aiResponse.data;
+      const isSpam = intent === 'spam';
 
       // 3. Update the comment with classification results
       comment.intent = intent;
@@ -48,7 +49,7 @@ export const classifyWorker = new Worker(
     }
   },
   {
-    connection: { client: bullConnection },
+    connection: bullConnection,
     prefix: env.REDIS_BULL_PREFIX,
     concurrency: 5, // Process up to 5 jobs concurrently
   }
