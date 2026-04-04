@@ -31,15 +31,9 @@
             "hash": "bbbe8a2f736ff41f13dc2d412cd92a68817542e5003e5a7bd85856882a0275ae"
         },
         {
-<<<<<<< HEAD
             "date": 1775250267926,
             "name": "logs\\error-2026-04-04.log",
             "hash": "30f26539c40563266ed1558d86f7a9553045497a1e556555f073a304983f1d33"
-=======
-            "date": 1775246358945,
-            "name": "logs/error-2026-04-04.log",
-            "hash": "c5fa654ea5e2edf61f57890058e322027e2993c5a3cc2e57d18a8ae0d225edff"
->>>>>>> upstream/main
         }
     ],
     "hashType": "sha256"
