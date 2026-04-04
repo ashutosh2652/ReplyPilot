@@ -1,7 +1,7 @@
 import cron from "node-cron";
 import Channel from "../models/Channel.models.js";
 import Video from "../models/Video.models.js";
-import { getValidYoutubeToken } from "../utils/youtubeToken.helper.js";
+import { getValidYoutubeToken } from "../middleware/youtubeToken.middleware.js";
 import { getVideoCommentsInfo } from "../services/Channel.service.js";
 import logger from "../utils/logger.js";
 
