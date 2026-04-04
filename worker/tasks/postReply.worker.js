@@ -1,12 +1,12 @@
 import { Worker } from 'bullmq';
-import { env } from '../../server/src/config/env.js';
-import { bullConnection } from '../../server/src/config/redis.js';
-import Reply from '../../server/src/models/Reply.models.js';
-import Comment from '../../server/src/models/Comment.models.js';
-import Video from '../../server/src/models/Video.models.js';
-import { getValidYoutubeToken } from '../../server/src/utils/youtubeToken.helper.js';
-import { buildYoutubeClient } from '../../server/src/utils/youtubeClient.js';
-import logger from '../../server/src/utils/logger.js';
+import { env } from '../config/env.js';
+import { bullConnection } from '../config/redis.js';
+import Reply from '../models/Reply.models.js';
+import Comment from '../models/Comment.models.js';
+import Video from '../models/Video.models.js';
+import { getValidYoutubeToken } from '../utils/youtubeToken.helper.js';
+import { buildYoutubeClient } from '../utils/youtubeClient.js';
+import logger from '../utils/logger.js';
 
 export const postReplyWorker = new Worker(
   'post-reply',
