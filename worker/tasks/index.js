@@ -1,4 +1,4 @@
-import logger from '../../server/src/utils/logger.js';
+import logger from '../utils/logger.js';
 import { classifyWorker } from './classify.worker.js';
 import { generateWorker } from './generate.worker.js';
 import { postReplyWorker } from './postReply.worker.js';

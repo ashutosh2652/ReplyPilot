@@ -19,10 +19,9 @@ await redis.connect();
 const queueUrl = new URL(env.REDIS_QUEUE_URL.trim());
 
 // ioredis (BullMQ)
-console.log(`Connecting to Redis Queue: ${queueUrl.hostname}:${queueUrl.port || 6379}`);
 export const bullConnection = new IORedis({
   host: queueUrl.hostname,
-  port: parseInt(queueUrl.port) || 6379,
+  port: parseInt(queueUrl.port),
   password: queueUrl.password,
   maxRetriesPerRequest: null,
 });
