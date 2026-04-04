@@ -1,7 +1,9 @@
 from langchain_ollama import OllamaLLM
 from langchain.prompts import PromptTemplate
 from langchain.schema import StrOutputParser
-from classify import classify_comment
+from app.services.classify_service import classify_comment
+from app.schemas.comment import CommentIn
+import uuid
 
 llm = OllamaLLM(model="llama2")
 
@@ -19,11 +21,13 @@ Generate a short, authentic reply.
 reply_chain = reply_prompt | llm | StrOutputParser()
 
 def generate_reply(comment: str, tone="friendly", persona="default"):
-    classification = classify_comment(comment)
+    # Create an ephemeral CommentIn object to utilize our new classification schema
+    temp_comment = CommentIn(comment_id=str(uuid.uuid4()), text=comment)
+    classification = classify_comment(temp_comment)
 
-    if classification["intent"] == "spam":
+    if classification["is_spam"] or classification["routing"] == "discard":
         return {
-            "intent": "spam",
+            "intent": classification["intent"],
             "reply": None,
             "moderation": True
         }
