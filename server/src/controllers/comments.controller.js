@@ -1,7 +1,53 @@
+import { env } from "../config/env.js";
 import Comment from "../models/Comment.models.js";
+import axios from "axios";
+
 
 const VALID_INTENTS = ['question', 'praise', 'criticism', 'spam', 'neutral', 'pending'];
 const VALID_SORT    = ['publishedAt', 'likeCount'];
+
+export const classifyComment = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    // 1. Find the comment in MongoDB
+    const comment = await Comment.findById(id);
+    if (!comment) return res.status(404).json({ error: 'Comment not found' });
+
+    // 2. Call your FastAPI AI Service
+    // Ensure your FastAPI is running on port 8000
+    const aiResponse = await axios.post(`${env.AI_SERVICE_URL}/classify`, {
+      comment_id: id,
+      text: comment.textDisplay || comment.content // Match your Schema field name
+    });
+
+    const { intent } = aiResponse.data;
+
+    // 3. Normalize intent to lowercase to match your VALID_INTENTS array
+    const normalizedIntent = intent.toLowerCase();
+
+    // 4. Update the database with the AI result
+    const updatedComment = await Comment.findByIdAndUpdate(
+      id,
+      { 
+        intent: VALID_INTENTS.includes(normalizedIntent) ? normalizedIntent : 'neutral', 
+        classificationStatus: 'done' 
+      },
+      { new: true }
+    );
+
+    return res.json({ 
+      message: 'AI Classification complete', 
+      data: updatedComment 
+    });
+  } catch (err) {
+    // Handle AI Service being offline
+    if (err.code === 'ECONNREFUSED') {
+      return res.status(503).json({ error: 'AI Service (FastAPI) is offline' });
+    }
+    next(err);
+  }
+};
 
 export const listComments = async (req,res,next)=>{
   try {
@@ -81,3 +127,7 @@ export const updateCommentIntent = async (req,res,next)=>{
     next(err);
   }
 }
+
+
+
+
