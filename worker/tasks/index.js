@@ -11,7 +11,7 @@ workers.forEach((worker) => {
     });
 
     worker.on('failed', (job, err) => {
-        logger.error(`[Worker ${worker.name}] Job ${job.id} failed with error: ${err.message}`);
+        logger.error(`[Worker ${worker.name}] Job ${job?.id ?? 'unknown'} failed with error: ${err.message}`);
     });
 
     worker.on('error', (err) => {
