@@ -23,8 +23,10 @@ const envSchema=z.object({
     AI_SERVICE_URL:z.string().default('http://localhost:8000'),
 
     REDIS_URL: z.string().min(1,'REDIS_URL is required!'),
-    REDIS_QUEUE_URL: z.string().min(1,'REDIS_QUEUE_URL is required'),
-    REDIS_BULL_PREFIX:z.string().min(1,'REDIS_BULL_PREFIX is required'),
+    REDIS_PORT: z.string().default('6379'),
+    REDIS_USERNAME: z.string().default('default'),
+    REDIS_PASSWORD: z.string().optional(),
+    REDIS_BULL_PREFIX: z.string().default('bull'),
 
     YOUTUBE_API_KEY:z.string().min(1,'YOUTUBE_API_KEY is required'),
 });
