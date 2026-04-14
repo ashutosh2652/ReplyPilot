@@ -7,6 +7,8 @@ import {
   approveReply,
   rejectReply,
   publishReply,
+  publishBatch,
+  createManualReply,
   regenerateReply,
 } from "../controllers/reply.controller.js";
 import authMiddleware from "../middleware/auth.middleware.js";
@@ -21,6 +23,12 @@ router.route("/")
 
 router.route("/generate/:id")
   .post(generateSingleReply);
+
+router.route("/batch/publish")
+  .put(publishBatch);
+
+router.route("/manual/:commentId")
+  .post(createManualReply);
 
 router.route("/:id")
   .get(getReply);

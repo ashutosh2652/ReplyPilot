@@ -27,12 +27,21 @@ export const getReply = async (id) => {
 /**
  * Triggers the initial AI generation for a specific comment
  */
-export const generateReply = async (commentId) => {
+export const generateReply = async (commentId, data = {}) => {
   try {
-    const response = await api.post(`/api/replies/generate/${commentId}`);
+    const response = await api.post(`/api/replies/generate/${commentId}`, data);
     return response.data;
   } catch (error) {
     handleReplyError(error, 'generateReply');
+  }
+};
+
+export const createManualReply = async (commentId, data) => {
+  try {
+    const response = await api.post(`/api/replies/manual/${commentId}`, data);
+    return response.data;
+  } catch (error) {
+    handleReplyError(error, 'createManualReply');
   }
 };
 
@@ -41,7 +50,7 @@ export const generateReply = async (commentId) => {
  */
 export const editReply = async (id, text) => {
   try {
-    const response = await api.put(`/api/replies/${id}/edit`, { text });
+    const response = await api.put(`/api/replies/${id}/edit`, { editedText: text });
     return response.data;
   } catch (error) {
     handleReplyError(error, 'editReply');
@@ -72,6 +81,15 @@ export const publishReply = async (id) => {
     return response.data;
   } catch (error) {
     handleReplyError(error, 'publishReply');
+  }
+};
+
+export const publishBatch = async (replyIds) => {
+  try {
+    const response = await api.put('/api/replies/batch/publish', { replyIds });
+    return response.data;
+  } catch (error) {
+    handleReplyError(error, 'publishBatch');
   }
 };
 

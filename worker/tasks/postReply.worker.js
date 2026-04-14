@@ -21,7 +21,7 @@ export const postReplyWorker = new Worker(
       const reply = await Reply.findOneAndUpdate(
         { _id: replyId, status: { $ne: 'published' } },
         { $set: { status: 'publishing' } },
-        { new: true }
+        { returnDocument: 'after' }
       );
 
       if (!reply) {

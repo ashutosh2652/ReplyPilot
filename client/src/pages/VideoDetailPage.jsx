@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { getVideo, syncVideoComments } from '../api/channel'
 import { classifyComment, listComments } from '../api/comments'
-import { generateReply } from '../api/replies'
+import { generateReply, createManualReply } from '../api/replies'
 import { enqueueBatch } from '../api/batch'
 import { listPersonas } from '../api/personas'
 
@@ -77,6 +77,10 @@ function CommentCard({ comment, onClassify, onGenerate, index, selected, onToggl
   const [replyText,   setReplyText]   = useState(null)
   const [actionError, setActionError] = useState(null)
   const [avatarError, setAvatarError] = useState(false)
+  const [spamBlocked, setSpamBlocked] = useState(false)
+  const [writingManual, setWritingManual] = useState(false)
+  const [manualText, setManualText] = useState('')
+  const [manualSaving, setManualSaving] = useState(false)
 
   async function handleClassify() {
     setClassifying(true); setActionError(null)
@@ -89,15 +93,67 @@ function CommentCard({ comment, onClassify, onGenerate, index, selected, onToggl
     finally { setClassifying(false) }
   }
 
-  async function handleGenerate() {
-    setGenerating(true); setActionError(null); setReplyText(null)
+  async function handleGenerate(force = false) {
+    setGenerating(true); setActionError(null); setReplyText(null); setSpamBlocked(false);
+    
+    let currentIntents = localIntents;
+    if (currentIntents.length === 0 && comment.classificationStatus !== 'done') {
+      try {
+        const res = await classifyComment(comment._id)
+        currentIntents = res?.data?.intents ?? res?.intents ?? []
+        setLocalIntents(currentIntents)
+        onClassify?.(comment._id, currentIntents)
+      } catch {
+        setActionError('Classification required to generate reply');
+        setGenerating(false);
+        return;
+      }
+    }
+    
+    const isSpam = currentIntents.some(i => (i.label === 'spam' && i.confidence > 0.5)) || comment.isSpam;
+    if (isSpam && !force) {
+       setActionError('Spam Detected. Auto-generate paused.');
+       setSpamBlocked(true);
+       setGenerating(false);
+       return;
+    }
+
     try {
-      const res = await generateReply(comment._id)
-      const text = res?.data?.text ?? res?.text ?? res?.reply?.text
+      const res = await generateReply(comment._id, { force })
+      const text = res?.data?.generatedText ?? res?.data?.text ?? res?.text ?? res?.reply?.text;
       setReplyText(text || 'Reply generated.')
       onGenerate?.(comment._id)
-    } catch { setActionError('AI Generation Failed') }
-    finally { setGenerating(false) }
+    } catch (err) {
+      setActionError(err.response?.data?.error || 'AI Generation Failed')
+    } finally { setGenerating(false) }
+  }
+
+  async function handleManualSave() {
+    if (!manualText.trim()) return;
+    setManualSaving(true); setActionError(null);
+    
+    let currentIntents = localIntents;
+    if (currentIntents.length === 0 && comment.classificationStatus !== 'done') {
+      try {
+        const res = await classifyComment(comment._id)
+        currentIntents = res?.data?.intents ?? res?.intents ?? []
+        setLocalIntents(currentIntents)
+        onClassify?.(comment._id, currentIntents)
+      } catch {
+        setActionError('Classification Failed. Cannot save.');
+        setManualSaving(false);
+        return;
+      }
+    }
+
+    try {
+      await createManualReply(comment._id, { text: manualText });
+      setReplyText(manualText);
+      setWritingManual(false);
+      onGenerate?.(comment._id);
+    } catch (err) {
+      setActionError(err.response?.data?.error || 'Failed to save manual reply');
+    } finally { setManualSaving(false); }
   }
 
   return (
@@ -157,9 +213,36 @@ function CommentCard({ comment, onClassify, onGenerate, index, selected, onToggl
             <div className="mb-4 p-4 bg-[#ff4444]/5 border border-[#ff4444]/10 rounded-xl relative overflow-hidden group">
               <div className="absolute top-0 left-0 w-1 h-full bg-[#ff4444]" />
               <p className="text-[10px] text-[#ff4444] font-black uppercase tracking-[0.2em] mb-2 flex items-center gap-2">
-                <span className="animate-pulse">✨</span> AI Suggested Reply
+                <span className="animate-pulse">✨</span> Reply Draft Saved
               </p>
               <p className="text-white/90 text-sm leading-relaxed italic">"{replyText}"</p>
+            </div>
+          )}
+
+          {writingManual && !replyText && (
+            <div className="mb-4 space-y-3">
+              <textarea
+                value={manualText}
+                onChange={e => setManualText(e.target.value)}
+                placeholder="Type your manual reply here..."
+                rows={3}
+                className="w-full bg-[#0d1117] border border-[#ff4444]/40 focus:border-[#ff4444] focus:ring-1 focus:ring-[#ff4444] outline-none rounded-xl px-4 py-3 text-sm text-white resize-none transition-all placeholder:text-[#484f58]"
+              />
+              <div className="flex gap-2 justify-end">
+                <button
+                  onClick={() => setWritingManual(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-[#8b949e] hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleManualSave}
+                  disabled={manualSaving || !manualText.trim()}
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-[#ff4444] hover:bg-[#ff6666] text-white transition-all disabled:opacity-50"
+                >
+                  {manualSaving ? 'Saving...' : 'Save Draft'}
+                </button>
+              </div>
             </div>
           )}
 
@@ -177,18 +260,38 @@ function CommentCard({ comment, onClassify, onGenerate, index, selected, onToggl
             <div className="flex items-center gap-2">
                 <button
                   onClick={(e) => { e.stopPropagation(); handleClassify() }}
-                  disabled={classifying || generating}
+                  disabled={classifying || generating || replyText}
                   className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest bg-white/5 border border-[#30363d] hover:bg-white/10 text-[#8b949e] hover:text-white transition-all active:scale-95 disabled:opacity-50"
                 >
                   {classifying ? 'Wait...' : 'Analyze'}
                 </button>
-                <button
-                  onClick={(e) => { e.stopPropagation(); handleGenerate() }}
-                  disabled={generating || classifying}
-                  className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest bg-[#ff4444] hover:bg-[#ff6666] text-white shadow-lg shadow-[#ff4444]/10 transition-all active:scale-95 disabled:opacity-50"
-                >
-                  {generating ? 'Drafting...' : 'Generate Reply'}
-                </button>
+                
+                {!replyText && !writingManual && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setWritingManual(true); }}
+                    className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest bg-white/5 border border-[#30363d] hover:bg-white/10 text-white transition-all active:scale-95"
+                  >
+                    Write Reply
+                  </button>
+                )}
+
+                {spamBlocked && !replyText ? (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleGenerate(true) }}
+                    disabled={generating}
+                    className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest bg-orange-500 hover:bg-orange-400 text-white shadow-lg transition-all active:scale-95 disabled:opacity-50"
+                  >
+                    {generating ? 'Drafting...' : 'Force Generate'}
+                  </button>
+                ) : (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleGenerate(false) }}
+                    disabled={generating || classifying || replyText}
+                    className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest bg-[#ff4444] hover:bg-[#ff6666] text-white shadow-lg shadow-[#ff4444]/10 transition-all active:scale-95 disabled:opacity-50"
+                  >
+                    {generating ? 'Drafting...' : 'Generate Reply'}
+                  </button>
+                )}
             </div>
           </div>
         </div>

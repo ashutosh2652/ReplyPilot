@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { getVideos } from '../api/channel'
-import { listReplies, approveReply, rejectReply, publishReply, editReply, regenerateReply } from '../api/replies'
+import { listReplies, approveReply, rejectReply, publishReply, publishBatch, editReply, regenerateReply } from '../api/replies'
 
 // ── Status config ─────────────────────────────────────────────────────────────
 const STATUS_STYLES = {
@@ -61,7 +61,7 @@ function StatusBadge({ status }) {
 }
 
 // ── Reply card ────────────────────────────────────────────────────────────────
-function ReplyCard({ reply, onUpdate }) {
+function ReplyCard({ reply, onUpdate, selected, onToggleSelect }) {
   const [status,    setStatus]    = useState(reply.status)
   const [editing,   setEditing]   = useState(false)
   const [editText,  setEditText]  = useState(reply.finalText || reply.generatedText || '')
@@ -144,6 +144,15 @@ function ReplyCard({ reply, onUpdate }) {
       {/* Header */}
       <div className="flex items-center justify-between gap-4 mb-6">
         <div className="flex items-center gap-3">
+          {!isLocked && (
+            <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all cursor-pointer ${
+                selected ? 'bg-[#ff4444] border-[#ff4444]' : 'border-[#484f58] hover:border-[#8b949e]'
+              }`}
+              onClick={(e) => { e.stopPropagation(); onToggleSelect && onToggleSelect(reply._id); }}
+            >
+              {selected && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
+            </div>
+          )}
           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gray-700 to-gray-800 flex items-center justify-center text-xs font-bold text-white uppercase">
             {comment?.authorName?.charAt(0) || '?'}
           </div>
@@ -307,6 +316,11 @@ export default function RepliesPage() {
   const [error,         setError]         = useState(null)
   const [statusFilter,  setStatusFilter]  = useState('all')
 
+  const [selectedIds, setSelectedIds] = useState(new Set())
+  const [batchPublishing, setBatchPublishing] = useState(false)
+
+  useEffect(() => { setSelectedIds(new Set()) }, [selectedVideoId, statusFilter])
+
   useEffect(() => {
     getVideos()
       .then(data => {
@@ -345,6 +359,37 @@ export default function RepliesPage() {
         ? { ...r, status: newStatus ?? r.status, finalText: newText ?? r.finalText }
         : r
     ))
+  }
+
+  function toggleSelect(id) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  function handleSelectAll() {
+    const available = filtered.filter(r => !['published', 'publishing'].includes(r.status))
+    if (selectedIds.size === available.length && available.length > 0) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(available.map(r => r._id)))
+    }
+  }
+
+  async function handleBatchPublish() {
+    if (selectedIds.size === 0) return;
+    setBatchPublishing(true); setError(null);
+    try {
+      await publishBatch([...selectedIds]);
+      setReplies(prev => prev.map(r => selectedIds.has(r._id) ? { ...r, status: 'publishing' } : r))
+      setSelectedIds(new Set());
+    } catch(err) {
+      setError(err.response?.data?.error || 'Failed to batch publish')
+    } finally {
+      setBatchPublishing(false)
+    }
   }
 
   const filtered = useMemo(() => {
@@ -426,30 +471,50 @@ export default function RepliesPage() {
           </div>
         ) : (
           <>
-            {/* Filter Tabs */}
+            {/* Filter Tabs & Batch Actions */}
             {!loading && replies.length > 0 && (
-              <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-                {STATUS_FILTERS.map(({ key, label }) => {
-                  const count = key === 'all' ? replies.length : (statusCounts[key] || 0)
-                  if (key !== 'all' && count === 0) return null
-                  const isActive = statusFilter === key
-                  return (
-                    <button
-                      key={key}
-                      onClick={() => setStatusFilter(key)}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap border transition-all ${
-                        isActive 
-                        ? 'bg-[#ff4444] border-[#ff4444] text-white shadow-lg shadow-red-500/20' 
-                        : 'bg-[#0d1117] border-[#30363d] text-[#8b949e] hover:border-[#444c56]'
-                      }`}
-                    >
-                      {label}
-                      <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${isActive ? 'bg-black/20' : 'bg-[#1c2128]'}`}>
-                        {count}
-                      </span>
-                    </button>
-                  )
-                })}
+              <div className="flex items-center justify-between flex-wrap gap-4">
+                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide flex-1">
+                  {STATUS_FILTERS.map(({ key, label }) => {
+                    const count = key === 'all' ? replies.length : (statusCounts[key] || 0)
+                    if (key !== 'all' && count === 0) return null
+                    const isActive = statusFilter === key
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => setStatusFilter(key)}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap border transition-all ${
+                          isActive 
+                          ? 'bg-[#ff4444] border-[#ff4444] text-white shadow-lg shadow-red-500/20' 
+                          : 'bg-[#0d1117] border-[#30363d] text-[#8b949e] hover:border-[#444c56]'
+                        }`}
+                      >
+                        {label}
+                        <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${isActive ? 'bg-black/20' : 'bg-[#1c2128]'}`}>
+                          {count}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0 border-l border-[#30363d] pl-4">
+                   <button
+                     onClick={handleSelectAll}
+                     className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-[#30363d] text-[#8b949e] hover:text-white hover:border-white/20 bg-[#161b22]/80 transition-all"
+                   >
+                     {selectedIds.size > 0 ? 'Deselect All' : 'Select All'}
+                   </button>
+                   {selectedIds.size > 0 && (
+                     <button
+                       onClick={handleBatchPublish}
+                       disabled={batchPublishing}
+                       className="flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest bg-blue-500 hover:bg-blue-400 text-white shadow-lg disabled:opacity-50 transition-all"
+                     >
+                       {batchPublishing ? 'Publishing...' : `Publish Selected (${selectedIds.size})`}
+                     </button>
+                   )}
+                </div>
               </div>
             )}
 
@@ -490,7 +555,7 @@ export default function RepliesPage() {
                 </div>
               ) : (
                 filtered.map(reply => (
-                  <ReplyCard key={reply._id} reply={reply} onUpdate={handleUpdate} />
+                  <ReplyCard key={reply._id} reply={reply} onUpdate={handleUpdate} selected={selectedIds.has(reply._id)} onToggleSelect={toggleSelect} />
                 ))
               )}
             </div>

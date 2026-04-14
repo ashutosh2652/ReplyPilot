@@ -2,6 +2,7 @@ import Comment from '../models/Comment.models.js';
 import Reply from '../models/Reply.models.js';
 import Video from '../models/Video.models.js';
 import Persona from '../models/Persona.models.js';
+import PersonaExample from '../models/PersonaExample.models.js';
 import { generateReply } from '../services/replyService.js';
 import { enqueueGenerateJob, enqueuePostReplyJob } from '../services/queue.service.js';
 import logger from '../utils/logger.js';
@@ -16,7 +17,7 @@ const VALID_TONES = [
 export async function generateSingleReply(req, res, next) {
   try {
     const { id } = req.params; // comment MongoDB _id
-    const { tone = 'friendly', personaId } = req.body || {};
+    const { tone = 'friendly', personaId, force = false } = req.body || {};
 
     // Validate tone
     if (!VALID_TONES.includes(tone)) {
@@ -28,8 +29,8 @@ export async function generateSingleReply(req, res, next) {
     if (!comment) return res.status(404).json({ error: 'Comment not found' });
 
     // 2. Check if comment is classified — don't generate for spam or unclassified
-    if (comment.intent === 'spam') {
-      return res.status(400).json({ error: 'Cannot generate reply for spam comments' });
+    if (comment.isSpam && !force) {
+      return res.status(400).json({ error: 'Spam detected. Auto-generation blocked unless forced.' });
     }
     if (comment.classificationStatus !== 'done') {
       return res.status(400).json({ error: 'Comment must be classified before generating a reply' });
@@ -62,7 +63,7 @@ export async function generateSingleReply(req, res, next) {
         tone: aiResult.tone,
         status: 'pending_review',
       },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: 'after' }
     );
 
     logger.info(`Reply generated for comment ${id} (tone: ${tone})`);
@@ -190,7 +191,7 @@ export async function rejectReply(req, res, next) {
     const reply = await Reply.findByIdAndUpdate(
       req.params.replyId,
       { status: 'rejected' },
-      { new: true }
+      { returnDocument: 'after' }
     );
     if (!reply) return res.status(404).json({ error: 'Reply not found' });
     return res.json({ message: 'Reply rejected', data: reply });
@@ -212,9 +213,166 @@ export async function publishReply(req, res, next) {
     }
     await reply.save();
 
+    const comment = await Comment.findById(reply.commentId).lean();
+    if (comment) {
+      let targetPersonaId = reply.personaId;
+      if (!targetPersonaId) {
+        const video = await Video.findOne({ videoId: comment.videoId }).lean();
+        if (video) {
+          const defaultPersona = await Persona.findOne({ userId: video.userId, isDefault: true }).lean();
+          if (defaultPersona) targetPersonaId = defaultPersona._id;
+        }
+      }
+
+      if (targetPersonaId) {
+        const scores = { question: 0, praise: 0, critism: 0, neutral: 0, spam: 0 };
+        (comment.intents || []).forEach(intent => {
+          if (intent.label === 'criticism') scores.critism = intent.confidence;
+          else if (scores[intent.label] !== undefined) scores[intent.label] = intent.confidence;
+        });
+
+        const textToSave = comment.textDisplay || comment.text;
+        if (textToSave) {
+          await PersonaExample.findOneAndUpdate(
+            { commentText: textToSave, replyText: reply.finalText, personaId: targetPersonaId },
+            {
+              personaId: targetPersonaId,
+              commentText: textToSave,
+              replyText: reply.finalText,
+              scores
+            },
+            { upsert: true, new: true }
+          );
+        }
+      }
+    }
+
     await enqueuePostReplyJob({ replyId: reply._id.toString() });
 
     return res.json({ message: 'Reply queued for publishing', data: reply });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ─── Batch Publish replies ──────────────────────────────────────────────────
+
+export async function publishBatch(req, res, next) {
+  try {
+    const { replyIds } = req.body;
+    if (!Array.isArray(replyIds) || replyIds.length === 0) {
+      return res.status(400).json({ error: 'replyIds array is required' });
+    }
+
+    const replies = await Reply.find({ _id: { $in: replyIds } });
+    
+    const results = [];
+    for (const reply of replies) {
+      if (['published', 'publishing'].includes(reply.status)) continue;
+
+      reply.status = 'publishing';
+      if (!reply.finalText) {
+         reply.finalText = reply.editedText || reply.generatedText;
+      }
+      await reply.save();
+      
+      const comment = await Comment.findById(reply.commentId).lean();
+      if (comment) {
+        let targetPersonaId = reply.personaId;
+        if (!targetPersonaId) {
+            const video = await Video.findOne({ videoId: comment.videoId }).lean();
+            if (video) {
+               const defaultPersona = await Persona.findOne({ userId: video.userId, isDefault: true }).lean();
+               if (defaultPersona) targetPersonaId = defaultPersona._id;
+            }
+        }
+
+        if (targetPersonaId) {
+          const scores = { question: 0, praise: 0, critism: 0, neutral: 0, spam: 0 };
+          (comment.intents || []).forEach(intent => {
+            if (intent.label === 'criticism') scores.critism = intent.confidence;
+            else if (scores[intent.label] !== undefined) scores[intent.label] = intent.confidence;
+          });
+          const textToSave = comment.textDisplay || comment.text;
+          if (textToSave) {
+            await PersonaExample.findOneAndUpdate(
+              { commentText: textToSave, replyText: reply.finalText, personaId: targetPersonaId },
+              { personaId: targetPersonaId, commentText: textToSave, replyText: reply.finalText, scores },
+              { upsert: true, new: true }
+            );
+          }
+        }
+      }
+
+      await enqueuePostReplyJob({ replyId: reply._id.toString() });
+      results.push(reply._id);
+    }
+
+    return res.json({ message: `${results.length} replies queued for publishing`, queued: results.length });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ─── Create a manual reply ──────────────────────────────────────────────────
+
+export async function createManualReply(req, res, next) {
+  try {
+    const { commentId } = req.params;
+    const { text, personaId } = req.body;
+    
+    if (!text || !text.trim()) {
+      return res.status(400).json({ error: 'text is required' });
+    }
+
+    const comment = await Comment.findById(commentId).lean();
+    if (!comment) return res.status(404).json({ error: 'Comment not found' });
+    if (comment.classificationStatus !== 'done') {
+      return res.status(400).json({ error: 'Comment must be classified before creating a reply' });
+    }
+
+    const reply = await Reply.findOneAndUpdate(
+      { commentId },
+      {
+        commentId,
+        ytCommentId: comment.ytCommentId,
+        personaId: personaId || undefined,
+        editedText: text.trim(),
+        finalText: text.trim(),
+        status: 'pending_review',
+      },
+      { upsert: true, returnDocument: 'after' }
+    );
+
+    let targetPersonaId = personaId;
+    if (!targetPersonaId) {
+        const video = await Video.findOne({ videoId: comment.videoId }).lean();
+        if (video) {
+           const defaultPersona = await Persona.findOne({ userId: video.userId, isDefault: true }).lean();
+           if (defaultPersona) targetPersonaId = defaultPersona._id;
+        }
+    }
+
+    if (targetPersonaId) {
+      const scores = { question: 0, praise: 0, critism: 0, neutral: 0, spam: 0 };
+      (comment.intents || []).forEach(intent => {
+        if (intent.label === 'criticism') scores.critism = intent.confidence;
+        else if (scores[intent.label] !== undefined) scores[intent.label] = intent.confidence;
+      });
+
+      const textToSave = comment.textDisplay || comment.text;
+      if (textToSave) {
+        await PersonaExample.findOneAndUpdate(
+          { commentText: textToSave, replyText: text.trim(), personaId: targetPersonaId },
+          { personaId: targetPersonaId, commentText: textToSave, replyText: text.trim(), scores },
+          { upsert: true, new: true }
+        );
+      }
+    }
+
+    logger.info(`Manual reply created for comment ${commentId}`);
+
+    return res.status(201).json({ message: 'Manual reply created', data: reply });
   } catch (err) {
     next(err);
   }
@@ -227,7 +385,7 @@ export async function regenerateReply(req, res, next) {
     const reply = await Reply.findById(req.params.replyId);
     if (!reply) return res.status(404).json({ error: 'Reply not found' });
 
-    const { tone = reply.tone } = req.body;
+    const { tone = reply.tone } = req.body || {};
 
     const comment = await Comment.findById(reply.commentId).lean();
     if (!comment) return res.status(404).json({ error: 'Original comment not found' });

@@ -41,18 +41,17 @@ const ReplySchema=new mongoose.Schema(
             default:'pending_review',
         },
         publishedAt:{type:Date},
-        ytReplyId:{type:String,unique:true},
+        ytReplyId:{type:String,unique:true, sparse: true},
         /** Set once comment.replyCount has been incremented for this reply (idempotent across retries). */
         replyCountCredited:{type:Boolean,default:false},
     },
     {timestamps:true}
 );
 
-ReplySchema.pre("save",function(next){
+ReplySchema.pre("save", function() {
     if(!this.finalText){
         this.finalText=this.editedText || this.generatedText;
     }
-    next();
 });
 
 ReplySchema.index({status:1,createdAt:-1});
