@@ -4,7 +4,7 @@ import mongoose from "mongoose";
 
 export async function createPersona(req, res, next) {
   try {
-    const { name, tone, systemPrompt, vocabulary, examples, isDefault } = req.body;
+    const { name, tone, creatorBio, vocabulary, examples, isDefault } = req.body;
     if (!name || !tone) return res.status(400).json({ error: 'name and tone are required' });
 
     // If this is being set as default, unset all others for this user
@@ -14,7 +14,7 @@ export async function createPersona(req, res, next) {
 
     const persona = await Persona.create({
       userId: req.user._id,
-      name, tone, systemPrompt, vocabulary, examples, isDefault: isDefault ?? false,
+      name, tone, creatorBio, vocabulary, examples, isDefault: isDefault ?? false,
     });
 
     return res.status(201).json({ data: persona });
@@ -81,7 +81,7 @@ export async function analyzePersona(req, res, next) {
     // TODO: replace this stub with an AI analysis service when available
     const result = {
       tone: 'friendly',
-      systemPrompt: bio.trim(),
+      creatorBio: bio.trim(),
     };
 
     return res.json({ data: result });

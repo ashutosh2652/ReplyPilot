@@ -62,11 +62,11 @@ function PersonaCard({ persona, onEdit, onDelete, onSetDefault, index }) {
         </div>
       </div>
 
-      {(persona.systemPrompt || persona.description) && (
+      {(persona.creatorBio || persona.description) && (
         <div className="relative mb-6">
             <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#30363d] rounded-full group-hover:bg-[#ff4444]/50 transition-colors" />
             <p className="text-[#8b949e] text-xs leading-relaxed line-clamp-3 pl-4 italic">
-              "{persona.systemPrompt || persona.description}"
+              "{persona.creatorBio || persona.description}"
             </p>
         </div>
       )}
@@ -160,22 +160,22 @@ function BioStep({ onAnalyzed }) {
 function ConfirmStep({ analysis, editingPersona, onSave, onBack }) {
   const [name, setName] = useState(editingPersona?.name ?? '')
   const [tone, setTone] = useState(analysis.tone ?? editingPersona?.tone ?? 'neutral')
-  const [systemPrompt, setSystemPrompt] = useState(analysis.systemPrompt ?? editingPersona?.systemPrompt ?? editingPersona?.bio ?? '')
+  const [creatorBio, setCreatorBio] = useState(analysis.creatorBio ?? editingPersona?.creatorBio ?? editingPersona?.bio ?? '')
   const [isDefault, setIsDefault] = useState(editingPersona?.isDefault ?? false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
 
-  const canSubmit = name.trim().length > 0 && systemPrompt.trim().length > 0 && !saving
+  const canSubmit = name.trim().length > 0 && creatorBio.trim().length > 0 && !saving
 
   const handleSubmit = async () => {
-    if (!name.trim() || !systemPrompt.trim()) {
+    if (!name.trim() || !creatorBio.trim()) {
       setError('Both a display name and persona prompt are required.');
       return;
     }
     setError(null)
     setSaving(true)
     try {
-      await onSave({ name, tone, systemPrompt, isDefault })
+      await onSave({ name, tone, creatorBio, isDefault })
     } catch (e) {
       setError(e.message || 'Failed to save persona.')
     } finally {
@@ -192,7 +192,7 @@ function ConfirmStep({ analysis, editingPersona, onSave, onBack }) {
              <ToneBadge tone={tone} />
              <div className="h-px flex-1 bg-[#ff4444]/20" />
         </div>
-        <p className="text-[#8b949e] text-xs leading-relaxed italic border-l-2 border-[#ff4444]/30 pl-4">"{systemPrompt}"</p>
+        <p className="text-[#8b949e] text-xs leading-relaxed italic border-l-2 border-[#ff4444]/30 pl-4">"{creatorBio}"</p>
       </div>
 
       <div className="space-y-4">
@@ -203,7 +203,7 @@ function ConfirmStep({ analysis, editingPersona, onSave, onBack }) {
 
           <div>
             <label className="block text-[#484f58] text-[10px] font-black uppercase tracking-widest mb-2">Persona Prompt / Bio</label>
-            <textarea value={systemPrompt} onChange={e => setSystemPrompt(e.target.value)} placeholder="Keep this prompt short and specific for the persona." rows={4} className="w-full bg-[#0d1117] border border-[#30363d] focus:border-[#ff4444] rounded-xl px-4 py-3 text-white text-sm outline-none transition-all resize-none" />
+            <textarea value={creatorBio} onChange={e => setCreatorBio(e.target.value)} placeholder="Keep this prompt short and specific for the persona." rows={4} className="w-full bg-[#0d1117] border border-[#30363d] focus:border-[#ff4444] rounded-xl px-4 py-3 text-white text-sm outline-none transition-all resize-none" />
           </div>
 
           <div>
@@ -241,7 +241,7 @@ function ConfirmStep({ analysis, editingPersona, onSave, onBack }) {
 
 function PersonaModal({ editingPersona, onClose, onSaved }) {
   const [step, setStep] = useState(editingPersona ? 2 : 1)
-  const [analysis, setAnalysis] = useState(editingPersona ? { tone: editingPersona.tone, systemPrompt: editingPersona.systemPrompt ?? editingPersona.description ?? editingPersona.bio ?? '' } : null)
+  const [analysis, setAnalysis] = useState(editingPersona ? { tone: editingPersona.tone, creatorBio: editingPersona.creatorBio ?? editingPersona.description ?? editingPersona.bio ?? '' } : null)
 
   const handleSave = async (fields) => {
     editingPersona ? await updatePersona(editingPersona._id, fields) : await createPersona(fields)

@@ -26,7 +26,7 @@ const PersonaSchema=new mongoose.Schema(
                     ],
             default:'friendly'
         },
-        systemPrompt:{type:String},
+        creatorBio:{type:String},
         vocabulary:[{type:String}],
         examples:[
             {

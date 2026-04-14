@@ -193,7 +193,7 @@ erDiagram
     PERSONA {
         string name
         string description
-        string systemPrompt
+        string creatorBio
         string tone
         ObjectId userId
     }
