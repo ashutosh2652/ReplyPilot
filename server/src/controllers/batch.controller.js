@@ -1,5 +1,6 @@
 import Comment from '../models/Comment.models.js';
 import Video from '../models/Video.models.js';
+import Persona from '../models/Persona.models.js';
 import { enqueueClassifyBulk, getJobStatus } from '../services/queue.service.js';
 import logger from '../utils/logger.js';
 
@@ -8,9 +9,16 @@ const ENQUEUE_CHUNK = 200;
 export async function enqueueBatch(req, res, next) {
   try {
     const userId = req.user._id;
-    const { videoId, commentIds, tone = 'friendly', personaId } = req.body;
+    let { videoId, commentIds, tone = 'friendly', personaId } = req.body;
 
     if (!videoId) return res.status(400).json({ error: 'videoId is required' });
+
+    if (!personaId) {
+      const defaultPersona = await Persona.findOne({ userId, isDefault: true }).lean();
+      if (defaultPersona) {
+        personaId = defaultPersona._id.toString();
+      }
+    }
 
     const video = await Video.findOne({ videoId, userId }).lean();
     if (!video) {

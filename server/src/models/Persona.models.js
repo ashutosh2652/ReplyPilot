@@ -27,6 +27,7 @@ const PersonaSchema = new mongoose.Schema(
             default: 'friendly'
         },
         creatorBio: { type: String, default: null },
+        isDefault: { type: Boolean, default: false }
     },
     { timestamps: true }
 );

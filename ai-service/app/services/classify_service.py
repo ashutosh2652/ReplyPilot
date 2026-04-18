@@ -1,24 +1,42 @@
-from transformers import pipeline
-import os
-from app.schemas.comment import CommentIn
+"""
+app/services/classify_service.py
 
-# Get the absolute path to your model folder
+Full classification pipeline:
+  1. SpamGatekeeper (4-layer fast filter)
+  2. Language detection
+  3. ML intent classification (English only)
+  4. Routing decision
+"""
+
+from transformers import pipeline as hf_pipeline
+import os
+
+from app.schemas.comment import CommentIn
+from app.services.spam_gatekeeper import gatekeeper
+from app.services.language_detector import detect_language
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
+
+# ── Load the fine-tuned intent classifier once (singleton) ────────────────────
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "../model_files")
 
-# Load the model once (Singleton pattern)
 try:
-    classifier = pipeline("text-classification", model=MODEL_PATH, tokenizer=MODEL_PATH)
+    classifier = hf_pipeline(
+        "text-classification", model=MODEL_PATH, tokenizer=MODEL_PATH
+    )
+    logger.info("Intent classifier loaded successfully", model_path=MODEL_PATH)
 except Exception as e:
     classifier = None
-    print(f"Warning: Could not load classifier: {e}")
+    logger.error("Could not load intent classifier", error=str(e))
 
-ALLOWED_INTENTS = [
-    "spam", "praise", "criticism", "neutral", "question"
-]
+ALLOWED_INTENTS = ["spam", "praise", "criticism", "neutral", "question"]
 
-def get_intent(text: str):
+
+def _run_ml_classifier(text: str) -> dict:
+    """Run the ML classifier and return structured intent data."""
     if classifier:
-        results = classifier(text, top_k=None)  # returns all labels sorted by score
+        results = classifier(text, top_k=None)
         intents = [
             {"label": r["label"].lower(), "confidence": round(r["score"], 4)}
             for r in results
@@ -26,42 +44,110 @@ def get_intent(text: str):
         ]
     else:
         intents = [{"label": "neutral", "confidence": 0.99}]
-    
-    # Sort by confidence descending
+
     intents.sort(key=lambda x: x["confidence"], reverse=True)
-    
-    # Primary intent is the highest confidence one
     primary = intents[0] if intents else {"label": "neutral", "confidence": 0.0}
-    
+
     return {
         "intent": primary["label"],
         "confidence": primary["confidence"],
         "intents": intents,
     }
 
-def classify_comment(comment: CommentIn) -> dict:
-    intent_data = get_intent(comment.text)
+
+def _determine_routing(intent: str, is_spam: bool) -> str:
+    """Decide the next step for the comment."""
+    if is_spam:
+        return "discard"
+    if intent == "criticism":
+        return "review"
+    return "generate"
+
+
+async def classify_comment(comment: CommentIn) -> dict:
+    """
+    Full classification pipeline.
+
+    1. SpamGatekeeper: fast structural/pattern checks + Redis dedup
+    2. Language detection via langdetect
+    3. ML classification (English only)
+    4. Routing decision
+
+    For non-English comments:
+      - Skip ML classification
+      - Return routing="generate" with is_english=False
+      - The generate endpoint will handle RAG + anti-spam prompt for Gemma
+    """
+    video_id = comment.video_id or ""
+
+    # ── Step 1: Spam Gatekeeper ──────────────────────────────────────────────
+    gate_spam, gate_reason = await gatekeeper.check_comment(video_id, comment.text)
+
+    if gate_spam:
+        logger.info(
+            "Spam caught by gatekeeper",
+            comment_id=comment.comment_id,
+            reason=gate_reason,
+        )
+        return {
+            "comment_id": comment.comment_id,
+            "intent": "spam",
+            "confidence": 1.0,
+            "intents": [{"label": "spam", "confidence": 1.0}],
+            "is_spam": True,
+            "spam_score": 1.0,
+            "routing": "discard",
+            "language": None,
+            "is_english": None,
+        }
+
+    # ── Step 2: Language Detection ───────────────────────────────────────────
+    language, is_english = detect_language(comment.text)
+
+    # ── Step 3: ML Classification (English only) ─────────────────────────────
+    if not is_english:
+        logger.info(
+            "Non-English comment, skipping ML classification",
+            comment_id=comment.comment_id,
+            language=language,
+        )
+        return {
+            "comment_id": comment.comment_id,
+            "intent": "neutral",
+            "confidence": 0.0,
+            "intents": [],
+            "is_spam": False,
+            "spam_score": 0.0,
+            "routing": "generate",
+            "language": language,
+            "is_english": False,
+        }
+
+    # English comment → run the ML classifier
+    intent_data = _run_ml_classifier(comment.text)
     intent = intent_data["intent"]
     intents = intent_data["intents"]
-    
-    # Determine spam based on intent or keywords
+
+    # Determine spam from ML classifier
     if intent == "spam":
-        spam_score = max(0.8, intent_data.get("confidence", 0.8))
         is_spam = True
+        spam_score = max(0.8, intent_data["confidence"])
     else:
+        is_spam = False
         spam_score = 0.0
-        text_lower = comment.text.lower()
-        if any(keyword in text_lower for keyword in ["buy now", "subscribe", "click here"]):
-            spam_score = 0.8
-        is_spam = spam_score > 0.5
-    
-    if is_spam:
-        routing = "discard"
-    elif intent == "criticism":
-        routing = "review"
-    else:
-        routing = "generate"
-        
+
+    routing = _determine_routing(intent, is_spam)
+
+    logger.info(
+        "Classification complete",
+        comment_id=comment.comment_id,
+        intent=intent,
+        confidence=intent_data["confidence"],
+        is_spam=is_spam,
+        routing=routing,
+        language=language,
+    )
+
     return {
         "comment_id": comment.comment_id,
         "intent": intent,
@@ -69,5 +155,7 @@ def classify_comment(comment: CommentIn) -> dict:
         "intents": intents,
         "is_spam": is_spam,
         "spam_score": spam_score,
-        "routing": routing
+        "routing": routing,
+        "language": language,
+        "is_english": True,
     }

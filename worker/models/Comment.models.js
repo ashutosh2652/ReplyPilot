@@ -59,7 +59,9 @@ const CommentSchema=new mongoose.Schema(
             enum:['pending','processing','done','failed'],
             default:'pending',
             index:true
-        }
+        },
+        language:{type:String,default:null},
+        isEnglish:{type:Boolean,default:true}
     },
     {timestamps:true}
 );

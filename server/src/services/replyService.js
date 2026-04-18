@@ -14,7 +14,18 @@ const AI_SERVICE_URL = env.AI_SERVICE_URL || 'http://localhost:8000';
  * @param {string} [params.videoContext] – optional "title + description"
  * @returns {Promise<Object>}          – { comment_id, reply_text, tone, model_used, char_count }
  */
-export const generateReply = async ({ commentId, commentText, tone = 'friendly', personaId = null, videoContext = '' }) => {
+export const generateReply = async ({
+  commentId,
+  commentText,
+  tone = 'friendly',
+  personaId = null,
+  videoContext = '',
+  videoId = null,
+  intents = [],
+  isEnglish = true,
+  creatorBio = null,
+  fewShotExamples = null
+}) => {
   try {
     const response = await axios.post(`${AI_SERVICE_URL}/api/v1/generate`, {
       comment_id: commentId,
@@ -22,6 +33,11 @@ export const generateReply = async ({ commentId, commentText, tone = 'friendly',
       tone,
       persona_id: personaId,
       video_context: videoContext,
+      video_id: videoId,
+      intents,
+      is_english: isEnglish,
+      creator_bio: creatorBio,
+      few_shot_examples: fewShotExamples
     });
     return response.data;
   } catch (error) {
@@ -33,7 +49,7 @@ export const generateReply = async ({ commentId, commentText, tone = 'friendly',
 /**
  * Calls the FastAPI /generate_batch endpoint for multiple comments at once.
  *
- * @param {Array<Object>} items – array of { commentId, commentText, tone, personaId, videoContext }
+ * @param {Array<Object>} items – array of { commentId, commentText, tone, personaId, videoContext, videoId, intents, isEnglish, creatorBio, fewShotExamples }
  * @returns {Promise<Array<Object>>}
  */
 export const generateReplyBatch = async (items) => {
@@ -44,6 +60,11 @@ export const generateReplyBatch = async (items) => {
       tone: item.tone || 'friendly',
       persona_id: item.personaId || null,
       video_context: item.videoContext || '',
+      video_id: item.videoId || null,
+      intents: item.intents || [],
+      is_english: item.isEnglish !== undefined ? item.isEnglish : true,
+      creator_bio: item.creatorBio || null,
+      few_shot_examples: item.fewShotExamples || null
     }));
 
     const response = await axios.post(`${AI_SERVICE_URL}/api/v1/generate_batch`, payload);

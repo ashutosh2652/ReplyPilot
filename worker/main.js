@@ -64,3 +64,4 @@ process.on("SIGINT", () => shutdown("SIGINT"));
 
 // Start the service
 startWorker();
+

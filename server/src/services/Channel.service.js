@@ -141,7 +141,7 @@ export const getVideoInfo = async (accessToken, videoId, userId) => {
   const saved = await Video.findOneAndUpdate(
     { videoId },
     { $set: { ...mapped, lastSyncedAt: new Date() } },
-    { upsert: true, new: true }
+    { upsert: true, returnDocument: 'after' }
   );
 
   logger.info(`Video synced: "${saved.title}" (${videoId})`);

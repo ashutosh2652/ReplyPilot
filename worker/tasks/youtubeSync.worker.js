@@ -5,6 +5,8 @@ import { getValidYoutubeToken } from '../utils/youtubeToken.helper.js';
 import { buildYoutubeClient, fetchLatestVideos, fetchTranscript } from '../utils/youtubeClient.js';
 import Video from '../models/Video.models.js';
 import logger from '../utils/logger.js';
+import axios from 'axios';
+import { env } from '../config/env.js';
 
 const youtubeSyncWorker = new Worker(
   'youtube-sync-queue',
@@ -16,11 +18,10 @@ const youtubeSyncWorker = new Worker(
       const accessToken = await getValidYoutubeToken(userId);
       const youtubeClient = buildYoutubeClient(accessToken);
 
-      // We'll check videos published in the last 24 hours
-      const publishedAfter = new Date(Date.now() - 24 * 60 * 60 * 1000);
-      const videos = await fetchLatestVideos(youtubeClient, channelId, publishedAfter);
+      // Fetch the latest videos without a specific date constraint
+      const videos = await fetchLatestVideos(youtubeClient, channelId);
 
-      logger.info(`Found ${videos.length} videos from the last 24 hours for channel ${channelId}`);
+      logger.info(`Found ${videos.length} recent videos for channel ${channelId}`);
 
       for (const item of videos) {
         // search.list returns id: { videoId: "..." } for videos
@@ -52,6 +53,22 @@ const youtubeSyncWorker = new Worker(
         );
         logger.debug(`Successfully upserted video ${videoId}`);
 
+        // Check if video is already indexed in Pinecone via RAG service
+        let isIndexedInRAG = false;
+        try {
+          const statusRes = await axios.get(`${env.RAG_SERVICE_URL}/api/v1/ingest/status/${videoId}`);
+          if (statusRes.data && statusRes.data.indexed) {
+             isIndexedInRAG = true;
+          }
+        } catch (statusError) {
+          logger.warn(`Could not verify RAG index status for video ${videoId}: ${statusError.message}`);
+        }
+
+        if (isIndexedInRAG) {
+          logger.debug(`Video ${videoId} is already indexed in Pinecone (RAG), skipping transcript fetch.`);
+          continue;
+        }
+
         // Fetch and cache transcript if not already in Redis
         const existingTranscript = await redis.get(keys.ytTranscript(videoId));
         if (existingTranscript) {
@@ -65,8 +82,6 @@ const youtubeSyncWorker = new Worker(
             // Trigger RAG ingestion
             try {
               logger.info(`Triggering RAG ingestion for video ${videoId}`);
-              const axios = (await import('axios')).default;
-              const { env } = await import('../config/env.js');
               await axios.post(`${env.RAG_SERVICE_URL}/api/v1/ingest`, {
                 video_id: videoId,
                 video_title: item.snippet?.title || null,

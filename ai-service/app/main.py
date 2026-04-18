@@ -7,13 +7,14 @@ from fastapi.middleware.cors import CORSMiddleware
 import time
 
 from app.core.logging        import setup_logging, get_logger
-from dotenv import load_dotenv
-load_dotenv()
-from app.api.v1.classify import router as classify_router
-from app.api.v1.generate import router as generate_router
+from app.core.config         import get_settings
 
 setup_logging()
 logger = get_logger(__name__)
+settings = get_settings()
+
+from app.api.v1.classify import router as classify_router
+from app.api.v1.generate import router as generate_router
 
 
 app = FastAPI(
@@ -51,6 +52,11 @@ async def global_exception_handler(request: Request, exc: Exception):
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={"detail": "Internal server error"},
     )
+
+
+@app.get("/health")
+async def health_check():
+    return {"status": "ok", "service": "ai-service"}
 
 
 app.include_router(classify_router, prefix="/api/v1", tags=["classify"])

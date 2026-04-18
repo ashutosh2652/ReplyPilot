@@ -15,7 +15,7 @@ get_venv_uvicorn() {
     if [ -f "$service_dir/.venv/Scripts/uvicorn" ] || [ -f "$service_dir/.venv/Scripts/uvicorn.exe" ]; then
         echo "../$service_dir/.venv/Scripts/uvicorn"
     else
-        echo "../$service_dir/.venv/bin/uvicorn"
+        echo "../$service_dir/.venv/Scripts/uvicorn"
     fi
 }
 
@@ -58,14 +58,14 @@ cd ..
 echo "-> Starting AI-Service on port 8000..."
 cd ai-service
 UVICORN_AI=$(get_venv_uvicorn "ai-service")
-$UVICORN_AI app.main:app --host 0.0.0.0 --port 8000 &
+$UVICORN_AI app.main:app --host 0.0.0.0 --port 8000 --reload &
 cd ..
 
 # 5. Start RAG (Uvicorn) on port 8001
 echo "-> Starting RAG on port 8001..."
 cd rag
 UVICORN_RAG=$(get_venv_uvicorn "rag")
-$UVICORN_RAG app.main:app --host 0.0.0.0 --port 8001 &
+$UVICORN_RAG app.main:app --host 0.0.0.0 --port 8001 --reload &
 cd ..
 
 echo "======================================"
