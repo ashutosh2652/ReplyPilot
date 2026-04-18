@@ -23,9 +23,9 @@ async function startServer() {
                 console.log("Error!!", error);
                 throw error;
             });
-            server = app.listen(env.PORT, () => {
+            server = app.listen(process.env.PORT||env.PORT||3000, () => {
                 console.log(
-                    `Mongodb is connected successfully to port:${env.PORT}`
+                    `Server running on port:${env.PORT}`
                 );
             });
             return; // success — exit the retry loop
