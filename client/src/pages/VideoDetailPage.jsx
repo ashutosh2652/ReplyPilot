@@ -39,6 +39,7 @@ const INTENT_STYLES = {
 const TONES = [
   'friendly', 'professional', 'humorous', 'promotional',
   'appreciative', 'informative', 'supportive', 'apologetic', 'neutral',
+  'romantic', 'rude', 'crazy',
 ]
 
 // Helper: get intents above threshold from a comment
@@ -70,7 +71,7 @@ function IntentBadges({ intents }) {
 
 // ── Components ─────────────────────────────────────────────────────────────
 
-function CommentCard({ comment, onClassify, onGenerate, index, selected, onToggleSelect }) {
+function CommentCard({ comment, onClassify, onGenerate, index, selected, onToggleSelect, tone }) {
   const [classifying, setClassifying] = useState(false)
   const [generating,  setGenerating]  = useState(false)
   const [localIntents, setLocalIntents] = useState(comment.intents ?? [])
@@ -119,7 +120,7 @@ function CommentCard({ comment, onClassify, onGenerate, index, selected, onToggl
     }
 
     try {
-      const res = await generateReply(comment._id, { force })
+      const res = await generateReply(comment._id, { force, tone })
       const text = res?.data?.generatedText ?? res?.data?.text ?? res?.text ?? res?.reply?.text;
       setReplyText(text || 'Reply generated.')
       onGenerate?.(comment._id)
@@ -352,7 +353,7 @@ function BatchBar({ selectedCount, totalCount, tone, onToneChange, personaId, on
             <select
               value={tone}
               onChange={(e) => onToneChange(e.target.value)}
-              className="bg-[#161b22] border border-[#30363d] rounded-xl px-3 py-2 text-white text-xs font-bold capitalize focus:outline-none focus:border-[#ff4444]/50 transition-colors cursor-pointer"
+              className="bg-[#161b22] border border-[#30363d] rounded-xl px-3 py-2 text-white text-xs font-bold capitalize focus:outline-none focus:border-[#ff4444]/50 transition-colors cursor-pointer max-h-48 overflow-y-auto"
             >
               {TONES.map(t => (
                 <option key={t} value={t} className="capitalize">{t}</option>
@@ -367,7 +368,7 @@ function BatchBar({ selectedCount, totalCount, tone, onToneChange, personaId, on
               <select
                 value={personaId}
                 onChange={(e) => onPersonaChange(e.target.value)}
-                className="bg-[#161b22] border border-[#30363d] rounded-xl px-3 py-2 text-white text-xs font-bold focus:outline-none focus:border-[#ff4444]/50 transition-colors cursor-pointer max-w-[160px]"
+                className="bg-[#161b22] border border-[#30363d] rounded-xl px-3 py-2 text-white text-xs font-bold focus:outline-none focus:border-[#ff4444]/50 transition-colors cursor-pointer max-w-[200px] max-h-48 overflow-y-auto"
               >
                 <option value="">None</option>
                 {personas.map(p => (
@@ -639,6 +640,7 @@ export default function VideoDetailPage() {
                 comment={c}
                 selected={selectedIds.has(c._id)}
                 onToggleSelect={toggleSelect}
+                tone={batchTone}
                 onClassify={(id, intents) => setComments(prev => prev.map(item => item._id === id ? { ...item, intents } : item))}
               />
             ))

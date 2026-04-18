@@ -22,11 +22,15 @@ const PersonaSchema = new mongoose.Schema(
                 'informative',
                 'supportive',
                 'apologetic',
-                'neutral'
+                'neutral',
+                'romantic',
+                'rude',
+                'crazy'
             ],
             default: 'friendly'
         },
         creatorBio: { type: String, default: null },
+        icon: { type: String, default: '🎭' },
         isDefault: { type: Boolean, default: false }
     },
     { timestamps: true }
