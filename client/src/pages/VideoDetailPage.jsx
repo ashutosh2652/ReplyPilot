@@ -326,6 +326,44 @@ function VideoInfoBar({ video }) {
 
 // ── Batch Action Bar ───────────────────────────────────────────────────────
 
+function CustomSelect({ value, onChange, options, placeholder="Select..." }) {
+  const [open, setOpen] = useState(false);
+  
+  useEffect(() => {
+    const handleWindowClick = () => setOpen(false);
+    if(open) window.addEventListener('click', handleWindowClick);
+    return () => window.removeEventListener('click', handleWindowClick);
+  }, [open]);
+
+  const selectedOption = options.find(o => o.value === value);
+
+  return (
+    <div className="relative" onClick={(e) => e.stopPropagation()}>
+      <div 
+        onClick={() => setOpen(!open)}
+        className="bg-[#161b22] border border-[#30363d] hover:border-[#ff4444]/30 rounded-xl px-3 py-2 text-white text-xs font-bold transition-colors cursor-pointer select-none flex items-center justify-between min-w-[120px]"
+      >
+        <span className="truncate">{selectedOption ? selectedOption.label : placeholder}</span>
+        <span className="ml-3 text-[#8b949e] text-[8px] transform transition-transform duration-200" style={{ transform: open ? 'rotate(180deg)' : 'none' }}>▼</span>
+      </div>
+      
+      {open && (
+        <div className="absolute top-full right-0 mt-2 bg-[#161b22] border border-[#30363d] rounded-xl shadow-2xl z-50 max-h-48 overflow-y-auto w-max min-w-full custom-scrollbar animate-in fade-in zoom-in-95 duration-200">
+          {options.map(opt => (
+            <div 
+              key={opt.value}
+              onClick={() => { onChange(opt.value); setOpen(false); }}
+              className={`px-4 py-2.5 text-xs font-bold cursor-pointer hover:bg-[#ff4444]/10 transition-colors ${value === opt.value ? 'text-[#ff4444] bg-[#ff4444]/5' : 'text-[#8b949e]'}`}
+            >
+              {opt.label}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function BatchBar({ selectedCount, totalCount, tone, onToneChange, personaId, onPersonaChange, personas, onBatchGenerate, loading }) {
   return (
     <div className="sticky top-0 z-20 bg-[#0d1117]/95 backdrop-blur-xl border border-[#ff4444]/20 rounded-2xl p-4 shadow-2xl shadow-[#ff4444]/5 animate-in fade-in slide-in-from-top-2 duration-300">
@@ -349,32 +387,23 @@ function BatchBar({ selectedCount, totalCount, tone, onToneChange, personaId, on
         <div className="flex items-center gap-3 flex-wrap">
           {/* Tone Picker */}
           <div className="flex items-center gap-2">
-            <label className="text-[#484f58] text-[10px] font-black uppercase tracking-widest">Tone</label>
-            <select
+            <label className="text-[#484f58] text-[10px] font-black uppercase tracking-widest leading-none mt-0.5">Tone</label>
+            <CustomSelect 
               value={tone}
-              onChange={(e) => onToneChange(e.target.value)}
-              className="bg-[#161b22] border border-[#30363d] rounded-xl px-3 py-2 text-white text-xs font-bold capitalize focus:outline-none focus:border-[#ff4444]/50 transition-colors cursor-pointer max-h-48 overflow-y-auto"
-            >
-              {TONES.map(t => (
-                <option key={t} value={t} className="capitalize">{t}</option>
-              ))}
-            </select>
+              onChange={onToneChange}
+              options={TONES.map(t => ({ value: t, label: t.charAt(0).toUpperCase() + t.slice(1) }))}
+            />
           </div>
 
           {/* Persona Picker */}
           {personas.length > 0 && (
             <div className="flex items-center gap-2">
-              <label className="text-[#484f58] text-[10px] font-black uppercase tracking-widest">Persona</label>
-              <select
+              <label className="text-[#484f58] text-[10px] font-black uppercase tracking-widest leading-none mt-0.5">Persona</label>
+              <CustomSelect 
                 value={personaId}
-                onChange={(e) => onPersonaChange(e.target.value)}
-                className="bg-[#161b22] border border-[#30363d] rounded-xl px-3 py-2 text-white text-xs font-bold focus:outline-none focus:border-[#ff4444]/50 transition-colors cursor-pointer max-w-[200px] max-h-48 overflow-y-auto"
-              >
-                <option value="">None</option>
-                {personas.map(p => (
-                  <option key={p._id} value={p._id}>{p.name}</option>
-                ))}
-              </select>
+                onChange={onPersonaChange}
+                options={[{value: '', label: 'None'}].concat(personas.map(p => ({ value: p._id, label: p.name })))}
+              />
             </div>
           )}
 
