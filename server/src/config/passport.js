@@ -35,7 +35,7 @@ passport.use(
                 const user = await User.findOneAndUpdate(
                     { googleId: profile.id },
                     updatePayload,
-                    { upsert: true, new: true, setDefaultsOnInsert: true }
+                    { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
                 );
 
                 const TTL = 55 * 60; // 55 min

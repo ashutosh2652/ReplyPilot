@@ -4,9 +4,6 @@ from app.schemas.reply import ReplyRequest, ReplyResponse
 from app.services.generate import generate_reply_service
 from app.core.logging import get_logger
 
-from dotenv import load_dotenv
-load_dotenv()
-
 logger = get_logger(__name__)
 router = APIRouter()
 
@@ -26,7 +23,7 @@ async def generate(request: ReplyRequest) -> ReplyResponse:
         logger.error(f"[generate] Model not ready: {e}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Generator model is not loaded. Check OPENAI_API_KEY in .env",
+            detail="Generator model is not loaded. Check HF_TOKEN in .env",
         )
     except Exception as e:
         logger.error(f"[generate] Failed for comment {request.comment_id}: {e}")
@@ -38,30 +35,27 @@ async def generate(request: ReplyRequest) -> ReplyResponse:
 
 @router.post(
     "/generate_batch",
-    response_model=ReplyResponse,
+    response_model=list[ReplyResponse],
     status_code=status.HTTP_200_OK,
-    summary="Generate a reply for a classified comment",
+    summary="Generate replies for multiple classified comments",
 )
-async def generate_batch(requests: list[ReplyRequest]):
+async def generate_batch(requests: list[ReplyRequest]) -> list[ReplyResponse]:
     try:
-        """Generates replies for a batch of comments concurrently."""
-        # Note: If batching many requests, you might want to use asyncio.gather
-        # to send requests to Hugging Face simultaneously for better performance.
-        results = []
-        for req in requests:
-            results.append(await generate_reply_service(req))
-        return results
+        import asyncio
+        results = await asyncio.gather(
+            *[generate_reply_service(req) for req in requests]
+        )
+        return list(results)
 
     except RuntimeError as e:
-        logger.error(f"[generate] Model not ready: {e}")
+        logger.error(f"[generate_batch] Model not ready: {e}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Generator model is not loaded. Check OPENAI_API_KEY in .env",
+            detail="Generator model is not loaded. Check HF_TOKEN in .env",
         )
     except Exception as e:
-        logger.error(f"[generate] Failed for comment {requests.comment_id}: {e}")
+        logger.error(f"[generate_batch] Failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Reply generation failed. Please retry.",
         )
-

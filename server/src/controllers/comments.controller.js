@@ -20,7 +20,7 @@ export const classifyComment = async (req, res, next) => {
       text: comment.textDisplay || comment.text,
     });
 
-    const { intents = [], is_spam = false } = aiResponse.data;
+    const { intents = [], is_spam = false, language = null, is_english = true } = aiResponse.data;
 
     // 3. Normalize intents array
     const normalizedIntents = (intents || [])
@@ -33,9 +33,11 @@ export const classifyComment = async (req, res, next) => {
       { 
         intents: normalizedIntents,
         isSpam: is_spam,
-        classificationStatus: 'done' 
+        classificationStatus: 'done',
+        language,
+        isEnglish: is_english
       },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     return res.json({ 
@@ -67,7 +69,7 @@ export const listComments = async (req,res,next)=>{
       return res.status(400).json({ error: 'videoId query param is required' });
     }
 
-    const filter = { videoId };
+    const filter = { videoId, replyCount: { $in: [0, null] } };
     if (intent && VALID_INTENTS.includes(intent)) {
       filter['intents.label'] = intent;
     }
@@ -79,14 +81,39 @@ export const listComments = async (req,res,next)=>{
     const sortKey  = VALID_SORT.includes(sortBy) ? sortBy : 'publishedAt';
     const sortDir  = order === 'asc' ? 1 : -1;
 
-    const [items, total] = await Promise.all([
-      Comment.find(filter)
-        .sort({ [sortKey]: sortDir })
-        .skip(skip)
-        .limit(limitNum)
-        .lean(),
-      Comment.countDocuments(filter),
+    const basePipeline = [
+      { $match: filter },
+      {
+        $lookup: {
+          from: 'replies',
+          localField: '_id',
+          foreignField: 'commentId',
+          as: 'replyData'
+        }
+      },
+      {
+        $match: {
+          'replyData.status': { $nin: ['published', 'publishing'] }
+        }
+      }
+    ];
+
+    const [itemsResult, countResult] = await Promise.all([
+      Comment.aggregate([
+        ...basePipeline,
+        { $sort: { [sortKey]: sortDir } },
+        { $skip: skip },
+        { $limit: limitNum },
+        { $project: { replyData: 0 } }
+      ]),
+      Comment.aggregate([
+        ...basePipeline,
+        { $count: 'total' }
+      ])
     ]);
+
+    const items = itemsResult || [];
+    const total = countResult[0]?.total || 0;
 
     return res.json({
       items,
@@ -129,7 +156,7 @@ export const updateCommentIntent = async (req,res,next)=>{
     const comment = await Comment.findByIdAndUpdate(
       req.params.id,
       { intents, classificationStatus: 'done' },
-      { new: true }
+      { returnDocument: 'after' }
     );
     if (!comment) return res.status(404).json({ error: 'Comment not found' });
 

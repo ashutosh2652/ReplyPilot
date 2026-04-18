@@ -449,6 +449,10 @@ export default function VideoDetailPage() {
       .then(res => {
         const items = Array.isArray(res) ? res : (res?.data ?? res?.items ?? [])
         setPersonas(items)
+        const defaultPersona = items.find(p => p.isDefault)
+        if (defaultPersona) {
+          setBatchPersonaId(defaultPersona._id)
+        }
       })
       .catch(() => setPersonas([]))
   }, [])

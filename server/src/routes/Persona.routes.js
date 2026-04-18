@@ -7,7 +7,6 @@ import {
   updatePersona,
   deletePersona,
   analyzePersona,
-  findSimilarPersonaExamples,
 } from '../controllers/Persona.controller.js';
 
 const router = express.Router();
@@ -18,7 +17,5 @@ router.route('/analyze').post(authMiddleware, analyzePersona);  // must be befor
 router.route('/:id').get(authMiddleware, getPersona);
 router.route('/:id').put(authMiddleware, updatePersona);
 router.route('/:id').delete(authMiddleware, deletePersona);
-router.route('/:id/similar-examples').post(authMiddleware, findSimilarPersonaExamples);
-
 
 export default router;

@@ -23,16 +23,24 @@ export function buildPublicYoutubeClient(){
  * Fetches the latest videos for a specific channel published after the given date.
  */
 export async function fetchLatestVideos(youtubeClient, channelId, publishedAfter) {
-    logger.debug(`Fetching latest videos for channel ${channelId} published after ${publishedAfter.toISOString()}`);
+    const logMsg = publishedAfter 
+        ? `Fetching latest videos for channel ${channelId} published after ${publishedAfter.toISOString()}`
+        : `Fetching latest videos for channel ${channelId} (no date limit)`;
+    logger.debug(logMsg);
+    
     try {
-        const response = await youtubeClient.search.list({
+        const params = {
             part: 'snippet',
             channelId: channelId,
-            publishedAfter: publishedAfter.toISOString(),
             maxResults: 50,
             order: 'date',
             type: 'video'
-        });
+        };
+        if (publishedAfter) {
+            params.publishedAfter = publishedAfter.toISOString();
+        }
+
+        const response = await youtubeClient.search.list(params);
         
         const itemsCount = response.data.items ? response.data.items.length : 0;
         logger.debug(`Successfully fetched ${itemsCount} videos for channel ${channelId}`);
@@ -63,8 +71,8 @@ export async function fetchTranscript(videoId) {
 
         const transcriptJson = JSON.stringify(transcriptItems.map(item => ({
             text: item.text,
-            start: item.offset,
-            duration: item.duration
+            start: item.offset/1000,
+            duration: item.duration/1000
         })));
         logger.debug(`Successfully fetched transcript for video ${videoId} (length: ${transcriptJson.length})`);
         return transcriptJson;
