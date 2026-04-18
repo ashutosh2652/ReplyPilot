@@ -19,6 +19,7 @@ class ReplyRequest(BaseModel):
     tone:             Literal[
         "friendly", "professional", "humorous", "promotional",
         "appreciative", "informative", "supportive", "apologetic", "neutral",
+        "romantic", "rude", "crazy",
     ] = "friendly"
     persona_id:       Optional[str]  = None
     video_context:    Optional[str]  = Field(

@@ -16,6 +16,7 @@ const STATUS_STYLES = {
 const TONE_EMOJI = {
   friendly: '😊', professional: '💼', humorous: '😄', promotional: '📢',
   appreciative: '🙏', informative: 'ℹ️', supportive: '🤝', apologetic: '😔', neutral: '😐',
+  romantic: '💕', rude: '💀', crazy: '🤪',
 }
 
 const STATUS_FILTERS = [

@@ -12,6 +12,7 @@ import { env } from '../config/env.js';
 const VALID_TONES = [
   'friendly', 'professional', 'humorous', 'promotional',
   'appreciative', 'informative', 'supportive', 'apologetic', 'neutral',
+  'romantic', 'rude', 'crazy',
 ];
 
 async function fetchFewShotExamples(videoId, intents = [], limit = 4) {

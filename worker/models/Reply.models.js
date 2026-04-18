@@ -31,7 +31,10 @@ const ReplySchema=new mongoose.Schema(
                     'informative',
                     'supportive',
                     'apologetic',
-                    'neutral'
+                    'neutral',
+                    'romantic',
+                    'rude',
+                    'crazy'
                     ],
             default:'friendly'
         },

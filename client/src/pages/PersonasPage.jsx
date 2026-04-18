@@ -7,30 +7,15 @@ import {
   analyzePersona,
 } from '../api/personas'
 
-const TONE_META = {
-  friendly:      { emoji: '😊', label: 'Friendly',      color: 'from-green-500/20 to-green-500/5',   border: 'border-green-500/30',   text: 'text-green-400'   },
-  professional:  { emoji: '💼', label: 'Professional',  color: 'from-blue-500/20 to-blue-500/5',    border: 'border-blue-500/30',   text: 'text-blue-400'    },
-  humorous:      { emoji: '😂', label: 'Humorous',      color: 'from-yellow-500/20 to-yellow-500/5',border: 'border-yellow-500/30', text: 'text-yellow-400' },
-  promotional:   { emoji: '📣', label: 'Promotional',   color: 'from-orange-500/20 to-orange-500/5',border: 'border-orange-500/30', text: 'text-orange-400' },
-  appreciative:  { emoji: '🙏', label: 'Appreciative',  color: 'from-pink-500/20 to-pink-500/5',    border: 'border-pink-500/30',   text: 'text-pink-400'    },
-  informative:   { emoji: '📚', label: 'Informative',   color: 'from-cyan-500/20 to-cyan-500/5',    border: 'border-cyan-500/30',   text: 'text-cyan-400'    },
-  supportive:    { emoji: '🤝', label: 'Supportive',    color: 'from-purple-500/20 to-purple-500/5', border: 'border-purple-500/30', text: 'text-purple-400' },
-  apologetic:    { emoji: '😔', label: 'Apologetic',    color: 'from-red-500/20 to-red-500/5',      border: 'border-red-500/30',    text: 'text-red-400'    },
-  neutral:       { emoji: '😐', label: 'Neutral',       color: 'from-gray-500/20 to-gray-500/5',    border: 'border-gray-500/30',   text: 'text-gray-400'   },
-}
-
-function ToneBadge({ tone }) {
-  const m = TONE_META[tone] ?? TONE_META.neutral
-  return (
-    <span className={`inline-flex items-center gap-1.5 text-[10px] px-3 py-1 rounded-full border font-black uppercase tracking-widest bg-gradient-to-r shadow-sm ${m.color} ${m.border} ${m.text}`}>
-      {m.emoji} {m.label}
-    </span>
-  )
-}
+const PERSONA_ICONS = [
+  '🎭', '🎤', '🎬', '🎮', '🎯', '🎨', '🎵', '🎸',
+  '🔥', '💀', '💕', '🤪', '😎', '🧠', '👑', '⚡',
+  '🚀', '💎', '🌟', '🦊', '🐺', '🦁', '🐉', '🤖',
+  '👻', '🎃', '💫', '🌈', '🗡️', '🛡️', '📸', '✨',
+]
 
 function PersonaCard({ persona, onEdit, onDelete, onSetDefault, index }) {
   const [deleting, setDeleting] = useState(false)
-  const m = TONE_META[persona.tone] ?? TONE_META.neutral
 
   async function handleDelete() {
     if (!confirm(`Delete persona "${persona.name}"?`)) return
@@ -53,12 +38,11 @@ function PersonaCard({ persona, onEdit, onDelete, onSetDefault, index }) {
       )}
 
       <div className="flex items-center gap-4 mb-5">
-        <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl transition-transform group-hover:scale-110 duration-300 shadow-inner bg-gradient-to-br ${m.color}`}>
-          {m.emoji}
+        <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl transition-transform group-hover:scale-110 duration-300 shadow-inner bg-gradient-to-br from-[#ff4444]/20 to-[#ff4444]/5">
+          {persona.icon || '🎭'}
         </div>
         <div className="min-w-0 flex-1">
           <h3 className="text-white font-black text-base tracking-tight truncate uppercase">{persona.name}</h3>
-          <div className="mt-1"><ToneBadge tone={persona.tone} /></div>
         </div>
       </div>
 
@@ -159,7 +143,7 @@ function BioStep({ onAnalyzed }) {
 
 function ConfirmStep({ analysis, editingPersona, onSave, onBack }) {
   const [name, setName] = useState(editingPersona?.name ?? '')
-  const [tone, setTone] = useState(analysis.tone ?? editingPersona?.tone ?? 'neutral')
+  const [icon, setIcon] = useState(editingPersona?.icon ?? '🎭')
   const [creatorBio, setCreatorBio] = useState(analysis.creatorBio ?? editingPersona?.creatorBio ?? editingPersona?.bio ?? '')
   const [isDefault, setIsDefault] = useState(editingPersona?.isDefault ?? false)
   const [saving, setSaving] = useState(false)
@@ -175,7 +159,7 @@ function ConfirmStep({ analysis, editingPersona, onSave, onBack }) {
     setError(null)
     setSaving(true)
     try {
-      await onSave({ name, tone, creatorBio, isDefault })
+      await onSave({ name, icon, creatorBio, isDefault })
     } catch (e) {
       setError(e.message || 'Failed to save persona.')
     } finally {
@@ -186,12 +170,8 @@ function ConfirmStep({ analysis, editingPersona, onSave, onBack }) {
   return (
     <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-left-4 duration-500">
       <div className="bg-gradient-to-br from-[#ff4444]/10 to-transparent border border-[#ff4444]/20 rounded-2xl p-6 relative overflow-hidden">
-        <div className="absolute -bottom-4 -right-4 text-6xl opacity-10 rotate-12">{TONE_META[tone]?.emoji}</div>
-        <p className="text-[10px] text-[#ff4444] font-black uppercase tracking-[0.2em] mb-4">AI Extraction Complete</p>
-        <div className="flex items-center gap-4 mb-4">
-             <ToneBadge tone={tone} />
-             <div className="h-px flex-1 bg-[#ff4444]/20" />
-        </div>
+        <div className="absolute -bottom-4 -right-4 text-6xl opacity-10 rotate-12">{icon}</div>
+        <p className="text-[10px] text-[#ff4444] font-black uppercase tracking-[0.2em] mb-4">Calibrate Your Settings</p>
         <p className="text-[#8b949e] text-xs leading-relaxed italic border-l-2 border-[#ff4444]/30 pl-4">"{creatorBio}"</p>
       </div>
 
@@ -207,11 +187,19 @@ function ConfirmStep({ analysis, editingPersona, onSave, onBack }) {
           </div>
 
           <div>
-            <label className="block text-[#484f58] text-[10px] font-black uppercase tracking-widest mb-3">Tone Calibration</label>
-            <div className="grid grid-cols-3 gap-2">
-              {Object.entries(TONE_META).map(([key, m]) => (
-                <button key={key} onClick={() => setTone(key)} className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[10px] font-bold border transition-all ${tone === key ? `bg-gradient-to-r ${m.color} ${m.border} ${m.text}` : 'bg-[#0d1117] border-[#30363d] text-[#8b949e]'}`}>
-                  {m.emoji} <span className="hidden sm:inline">{m.label}</span>
+            <label className="block text-[#484f58] text-[10px] font-black uppercase tracking-widest mb-3">Persona Icon</label>
+            <div className="grid grid-cols-8 gap-2">
+              {PERSONA_ICONS.map((emoji) => (
+                <button
+                  key={emoji}
+                  onClick={() => setIcon(emoji)}
+                  className={`w-10 h-10 rounded-xl text-xl flex items-center justify-center border transition-all active:scale-90 ${
+                    icon === emoji
+                      ? 'bg-[#ff4444]/20 border-[#ff4444] scale-110 shadow-lg shadow-[#ff4444]/20'
+                      : 'bg-[#0d1117] border-[#30363d] hover:border-[#484f58] hover:bg-[#1c2128]'
+                  }`}
+                >
+                  {emoji}
                 </button>
               ))}
             </div>

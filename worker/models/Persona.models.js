@@ -22,7 +22,10 @@ const PersonaSchema=new mongoose.Schema(
                     'informative',
                     'supportive',
                     'apologetic',
-                    'neutral'
+                    'neutral',
+                    'romantic',
+                    'rude',
+                    'crazy'
                     ],
             default:'friendly'
         },
@@ -34,6 +37,7 @@ const PersonaSchema=new mongoose.Schema(
                 replyText:{type:String},
             }
         ],
+        icon:{type:String, default:'🎭'},
         isDefault:{
             type:Boolean,
             default:false
