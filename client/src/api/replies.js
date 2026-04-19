@@ -104,3 +104,12 @@ export const regenerateReply = async (id) => {
     handleReplyError(error, 'regenerateReply');
   }
 };
+
+export const deleteReply = async (id) => {
+  try {
+    const response = await api.delete(`/api/replies/${id}`);
+    return response.data;
+  } catch (error) {
+    handleReplyError(error, 'deleteReply');
+  }
+};

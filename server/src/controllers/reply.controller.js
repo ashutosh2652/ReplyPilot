@@ -603,3 +603,15 @@ export async function regenerateReply(req, res, next) {
     next(err);
   }
 }
+
+// ─── Delete a generated reply ───────────────────────────────────────────────
+
+export async function deleteReply(req, res, next) {
+  try {
+    const reply = await Reply.findByIdAndDelete(req.params.id);
+    if (!reply) return res.status(404).json({ error: 'Reply not found' });
+    return res.json({ message: 'Reply deleted successfully', data: reply });
+  } catch (err) {
+    next(err);
+  }
+}

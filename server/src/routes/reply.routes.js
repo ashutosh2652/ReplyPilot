@@ -10,6 +10,7 @@ import {
   publishBatch,
   createManualReply,
   regenerateReply,
+  deleteReply,
 } from "../controllers/reply.controller.js";
 import authMiddleware from "../middleware/auth.middleware.js";
 
@@ -31,7 +32,8 @@ router.route("/manual/:commentId")
   .post(createManualReply);
 
 router.route("/:id")
-  .get(getReply);
+  .get(getReply)
+  .delete(deleteReply);
 
 router.route("/:replyId/edit")
   .put(editReply);

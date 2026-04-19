@@ -1,6 +1,7 @@
 import { Outlet, NavLink, Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { searchAll } from '../api/comments'
 
 const nav = [
   { to: '/dashboard', icon: '📊', label: 'Dashboard' },
@@ -12,28 +13,57 @@ const nav = [
 export default function AppLayout() {
   const navigate = useNavigate()
   const location = useLocation()
-  const [searchParams] = useSearchParams()
-  const [searchQuery, setSearchQuery] = useState('')
   const { user } = useAuth()
 
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState(null)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searching, setSearching] = useState(false)
+  const searchRef = useRef(null)
+  const debounceRef = useRef(null)
+
+  // Debounced live search
   useEffect(() => {
-    if (location.pathname.startsWith('/videos')) {
-      setSearchQuery(searchParams.get('search') || '')
+    if (!searchQuery.trim()) {
+      setSearchResults(null)
+      setSearchOpen(false)
+      return
     }
-  }, [location.pathname, searchParams])
 
-  const handleSearchSubmit = () => {
-    const query = searchQuery.trim()
-    if (!query) return
-    navigate(`/videos?search=${encodeURIComponent(query)}`)
-  }
+    setSearching(true)
+    clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const data = await searchAll(searchQuery.trim())
+        setSearchResults(data)
+        setSearchOpen(true)
+      } catch {
+        setSearchResults(null)
+      } finally {
+        setSearching(false)
+      }
+    }, 350)
 
-  const handleSearchKeyDown = (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      handleSearchSubmit()
+    return () => clearTimeout(debounceRef.current)
+  }, [searchQuery])
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (searchRef.current && !searchRef.current.contains(e.target)) {
+        setSearchOpen(false)
+      }
     }
-  }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  // Close on navigation
+  useEffect(() => {
+    setSearchOpen(false)
+  }, [location.pathname])
+
+  const hasResults = searchResults && (searchResults.videos?.length > 0 || searchResults.comments?.length > 0)
 
   return (
     <div className="flex h-screen bg-[#0d1117] text-white overflow-hidden font-sans selection:bg-[#ff4444]/30">
@@ -78,22 +108,75 @@ export default function AppLayout() {
       {/* ── Right column ── */}
       <div className="flex flex-col flex-1 overflow-hidden">
 
-        {/* TopBar - Added Search and Notification functionality */}
-        <header className="h-16 flex items-center justify-between px-8 bg-[#161b22]/95 backdrop-blur-sm border-b border-[#30363d] shrink-0 z-10">
+        {/* TopBar */}
+        <header className="h-16 flex items-center justify-between px-8 bg-[#161b22] border-b border-[#30363d] shrink-0 z-40 relative">
           
-          {/* Functional Search Bar */}
-          <div className="relative group hidden md:block">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8b949e] group-focus-within:text-[#ff4444] transition-colors">
-              🔍
+          {/* Search Bar with Live Results */}
+          <div className="relative hidden md:block" ref={searchRef}>
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8b949e]">
+              {searching ? (
+                <span className="inline-block w-4 h-4 border-2 border-[#8b949e] border-t-transparent rounded-full animate-spin" />
+              ) : '🔍'}
             </span>
             <input 
               type="text"
-              placeholder="Search comments or videos... (Cmd + K)"
+              placeholder="Search Videos / Comments"
               className="bg-[#0d1117] border border-[#30363d] rounded-full py-1.5 pl-10 pr-4 text-sm w-80 focus:outline-none focus:border-[#ff4444] focus:ring-1 focus:ring-[#ff4444]/50 transition-all placeholder:text-[#484f58]"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={handleSearchKeyDown}
+              onFocus={() => { if (hasResults) setSearchOpen(true) }}
             />
+
+            {/* Search Results Dropdown */}
+            {searchOpen && searchResults && (
+              <div className="absolute top-full left-0 w-80 mt-2 bg-[#0d1117] backdrop-blur-xl border border-[#484f58] rounded-xl shadow-[0_25px_80px_rgba(0,0,0,0.9)] max-h-80 overflow-y-auto z-[100] animate-in fade-in zoom-in-95 duration-200">
+                {!hasResults ? (
+                  <div className="px-4 py-6 text-center text-[#484f58] text-xs font-medium">
+                    No results found for "{searchQuery}"
+                  </div>
+                ) : (
+                  <>
+                    {searchResults.videos?.length > 0 && (
+                      <div>
+                        <p className="px-4 pt-3 pb-1.5 text-[10px] font-black uppercase tracking-widest text-[#484f58]">Videos</p>
+                        {searchResults.videos.map(v => (
+                          <button
+                            key={v.videoId}
+                            onClick={() => { navigate(`/videos/${v.videoId}`); setSearchOpen(false); setSearchQuery('') }}
+                            className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-[#1c2128] transition-colors"
+                          >
+                            <span className="text-base">📹</span>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm text-white font-medium truncate">{v.title}</p>
+                              <p className="text-[10px] text-[#484f58]">{v.viewCount?.toLocaleString() || 0} views • {v.commentCount?.toLocaleString() || 0} comments</p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {searchResults.comments?.length > 0 && (
+                      <div className={searchResults.videos?.length > 0 ? 'border-t border-[#30363d]' : ''}>
+                        <p className="px-4 pt-3 pb-1.5 text-[10px] font-black uppercase tracking-widest text-[#484f58]">Comments</p>
+                        {searchResults.comments.map(c => (
+                          <button
+                            key={c._id}
+                            onClick={() => { navigate(`/videos/${c.videoId}`); setSearchOpen(false); setSearchQuery('') }}
+                            className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-[#1c2128] transition-colors"
+                          >
+                            <span className="text-base">💬</span>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm text-[#8b949e] truncate">{c.textDisplay || c.text}</p>
+                              <p className="text-[10px] text-[#484f58]">by {c.authorName || 'Unknown'}</p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-6">
@@ -109,13 +192,13 @@ export default function AppLayout() {
                 <span className="text-xs font-semibold text-white"> {user?.displayName || 'User'} </span>
                 <span className="text-[10px] text-green-500 font-medium">Creator</span>
               </div>
-              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#ff4444] to-[#ff8e8e] flex items-center justify-center text-xs font-bold border-2 border-[#30363d] cursor-pointer hover:shadow-[0_0_15px_rgba(255,68,68,0.4)] transition-all">
+              <Link to="/dashboard" className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#ff4444] to-[#ff8e8e] flex items-center justify-center text-xs font-bold border-2 border-[#30363d] cursor-pointer hover:shadow-[0_0_15px_rgba(255,68,68,0.4)] transition-all">
                 {user?.avatar ? (
                   <img src={user.avatar} alt={user.displayName} className="w-full h-full rounded-full object-cover" />
                 ) : (
                   <span>{user?.displayName?.charAt(0) || 'U'}</span>
                 )}
-              </div>
+              </Link>
             </div>
           </div>
         </header>

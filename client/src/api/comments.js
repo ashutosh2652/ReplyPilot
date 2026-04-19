@@ -42,3 +42,12 @@ export const classifyComment = async (id) => {
     handleApiError(error, 'classifyComment');
   }
 };
+
+export const searchAll = async (q) => {
+  try {
+    const response = await api.get('/api/comments/search', { params: { q } });
+    return response.data;
+  } catch (error) {
+    handleApiError(error, 'searchAll');
+  }
+};
