@@ -27,7 +27,7 @@ app.use(cookieParser());
 
 app.use(requestLogger);
 
-app.set('trust proxy', 1);
+app.set('trust proxy', true);
 
 app.use(session({
   name: 'sid',
