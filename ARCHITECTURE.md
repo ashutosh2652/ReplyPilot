@@ -52,6 +52,13 @@ graph TB
     SERVER -->|"OAuth 2.0"| YT
 ```
 
+### System Components Interaction:
+- **Client**: The React frontend where users manage their YouTube channels and AI personas.
+- **Server**: The Express backend acts as the main HTTP API gateway. It handles Google OAuth, fetches data from the YouTube API, securely stores encrypted tokens, and delegates heavy tasks to the message queue.
+- **Worker (BullMQ)**: A standalone Node.js process that constantly polls Redis-backed queues. It fetches tasks like classifying new comments, generating AI replies, or publishing approved replies back to YouTube.
+- **AI Service (FastAPI)**: A specialized Python microservice equipped with custom ML models and LLMs. It classifies the intent of comments (e.g., whether it's spam or praise) and generates drafted replies based on user-selected personas.
+- **RAG Service**: Analyzes video transcripts and stores them as vectors in Pinecone, enabling the AI Service to look up contextual information from the original video when answering comments.
+
 ---
 
 ## 3. Service Breakdown
@@ -416,26 +423,31 @@ sequenceDiagram
     WK->>DB: Update reply (status→published)
 ```
 
+### Step-by-Step Flow Explanation:
+1. **Cron Job Synchronization**: Every 30 minutes, the server pulls the latest comments from the user's synchronized YouTube videos.
+2. **Classification Queueing**: These new comments are bulk-inserted into MongoDB and added to the `classify` queue in Redis.
+3. **Intent Detection**: The worker picks up the job and sends the comment to the Python AI Service, which uses a fine-tuned HuggingFace model to detect if the comment is spam, praise, neutral, criticism, or a question.
+4. **Generating Replies**: If the comment is deemed worthy of a reply, the worker spawns a `generate` job. The AI Service uses Google Gemma (via HuggingFace Inference API), along with the channel owner's predefined persona, to draft a response.
+5. **Human Review**: The draft reply is inserted into MongoDB with a `pending_review` status. The user can view, edit, or approve this draft directly from the React dashboard.
+6. **Publishing**: Once approved, a `post-reply` job is triggered. The worker safely accesses the encrypted YouTube tokens, publishes the reply as the channel owner, and marks it as `published` in the database.
+
 ---
 
 ## 6. Deployment Architecture
 
 ```mermaid
 graph TB
-    subgraph "Docker Containers"
-        C1["Client Container<br/>(client.DOCKERFILE)"]
-        C2["Server Container<br/>(server.DOCKERFILE)"]
+    subgraph "Containers / Deployment"
+        C1["Client Container<br/>(infra/docker/client.DOCKERFILE)"]
+        C2["Server Container<br/>(infra/docker/server.DOCKERFILE)"]
+        P1["AI Service Container<br/>(Railway Nixpacks)"]
+        P2["RAG Service Container<br/>(rag/Dockerfile)"]
     end
 
     subgraph "Managed Services"
         M1["MongoDB Atlas"]
         M2["Redis Cloud"]
         M3["Pinecone Cloud"]
-    end
-
-    subgraph "Python Services"
-        P1["AI Service<br/>(uvicorn)"]
-        P2["RAG Service<br/>(uvicorn)"]
     end
 
     C1 --> C2
@@ -445,6 +457,11 @@ graph TB
     P2 --> M2
     P2 --> M3
 ```
+
+### Deployment Setup Explanation:
+- The **Client** and **Server** applications are robustly containerized using traditional `Dockerfiles` (`client.DOCKERFILE` and `server.DOCKERFILE` respectfully) to ensure reproducibility parity between local development and production environments.
+- The **AI Service** is tailored to be built using [Nixpacks](https://nixpacks.com/), which is exceptionally fast for Python deployments on platforms like Railway, eliminating environment discrepancy bugs without manual Dockerfile configuration.
+- The **RAG Service** is deployed by its native `Dockerfile`, allowing for exact specification of ML libraries, while all data relies on highly-available external managed services (Atlas, Redis Cloud, Pinecone). This decoupled infrastructure ensures the GPU-heavy language processing does not bottleneck standard backend traffic.
 
 ---
 
@@ -491,30 +508,33 @@ ReplyPilot/
 │   │   └── index.js                 # Worker registry
 │   └── utils/                       # httpClient, logger, youtube helpers
 │
-├── ai-service/                      # Python AI Microservice
-│   └── app/
-│       ├── main.py                  # FastAPI app
-│       ├── api/v1/                  # classify & generate routes
-│       ├── services/                # classify_service, generate
-│       ├── models/                  # Intent classifier training notebook
-│       ├── model_files/             # Fine-tuned classification model
-│       ├── prompts/                 # 10 tone template files
-│       ├── schemas/                 # Pydantic request/response models
-│       └── core/                    # logging config
+├── ai-service/                      # Python AI Microservice (Deploy: Railway Nixpacks)
+│   ├── app/
+│   │   ├── api/v1/                  # FastAPI endpoints (classify, generate)
+│   │   ├── services/                # Core logic (classify, generate, spam check, rag client)
+│   │   ├── core/                    # App configuration and logging
+│   │   ├── model_files/             # Local fine-tuned intent classifier model
+│   │   ├── models/                  # PyTorch models / Training scripts
+│   │   ├── prompts/                 # 10 tone template instructional prompts
+│   │   ├── schemas/                 # Pydantic request/response validation models
+│   │   └── main.py                  # FastAPI application entry point
+│   ├── nixpacks.toml                # Nixpacks deployment configuration
+│   ├── pyproject.toml               # Poetry/Project configuration
+│   └── requirements.txt             # Locked Python dependencies
 │
-├── rag/                             # Python RAG Microservice
-│   └── app/
-│       ├── main.py                  # FastAPI app
-│       ├── api/routes/              # health, ingest, query routes
-│       ├── services/                # ingest_service, query_service
-│       ├── pipeline/
-│       │   ├── orchestrator.py      # 9-stage ingest pipeline
-│       │   ├── ingestion/           # guard, redis_reader, text_cleaner
-│       │   ├── chunking/            # token_splitter, context_builder
-│       │   ├── embedding/           # bge_embedder, batch_manager
-│       │   └── storage/             # payload_builder, pinecone_client
-│       ├── retrieval/               # query_embedder, searcher, reranker
-│       └── core/                    # config, logger, exceptions
+├── rag/                             # Python RAG Microservice (Deploy: Railway Docker)
+│   ├── app/
+│   │   ├── api/                     # Endpoints (routes) and middleware
+│   │   ├── pipeline/                # 9-stage video ingest (chunking, embedding, storage)
+│   │   ├── retrieval/               # Searcher, query embedder, and cross-encoder reranker
+│   │   ├── services/                # Ingestion and query orchestrator services
+│   │   ├── worker/                  # Async background tasks machinery
+│   │   ├── core/                    # Logger, configuration, and exceptions
+│   │   └── main.py                  # FastAPI application entry point
+│   ├── Dockerfile                   # Docker containerization config
+│   ├── pyproject.toml               # Poetry/Project configuration
+│   ├── requirements.txt             # Locked Python dependencies
+│   └── scripts/                     # Operational utility scripts
 │
 └── infra/
     └── docker/

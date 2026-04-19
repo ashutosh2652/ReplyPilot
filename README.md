@@ -209,23 +209,33 @@ ReplyPilot/
 │   ├── tasks/                  # classify, generate, postReply, youtubeSync workers
 │   └── utils/                  # HTTP client, logger, YouTube helpers
 │
-├── ai-service/                 # Python AI Microservice
-│   └── app/
-│       ├── main.py             # FastAPI application
-│       ├── api/v1/             # classify & generate endpoints
-│       ├── services/           # Classification & generation logic
-│       ├── model_files/        # Fine-tuned intent classifier
-│       ├── prompts/            # 10 tone template files
-│       └── schemas/            # Pydantic request/response models
+├── ai-service/                 # Python AI Microservice (Deploy: Railway Nixpacks)
+│   ├── app/
+│   │   ├── api/v1/             # FastAPI endpoints (classify, generate)
+│   │   ├── services/           # Core logic (classify, generate, spam check, rag client)
+│   │   ├── core/               # App configuration and logging
+│   │   ├── model_files/        # Local fine-tuned intent classifier model
+│   │   ├── models/             # PyTorch models / Training scripts
+│   │   ├── prompts/            # 10 tone template instructional prompts
+│   │   ├── schemas/            # Pydantic request/response validation models
+│   │   └── main.py             # FastAPI application entry point
+│   ├── nixpacks.toml           # Nixpacks build configuration
+│   ├── pyproject.toml          # Python dependencies config
+│   └── requirements.txt        # Locked dependencies
 │
-├── rag/                        # Python RAG Microservice
-│   └── app/
-│       ├── main.py             # FastAPI application
-│       ├── api/routes/         # health, ingest, query endpoints
-│       ├── services/           # Ingest & query orchestration
-│       ├── pipeline/           # 9-stage ingest pipeline
-│       ├── retrieval/          # Query embedder, searcher, reranker
-│       └── core/               # Config, logger, exceptions
+├── rag/                        # Python RAG Microservice (Deploy: Railway Docker)
+│   ├── app/
+│   │   ├── api/                # Endpoints (routes) and middleware
+│   │   ├── pipeline/           # 9-stage video ingest (chunking, embedding, storage)
+│   │   ├── retrieval/          # Searcher, query embedder, and cross-encoder reranker
+│   │   ├── services/           # Ingestion and query orchestrator services
+│   │   ├── worker/             # Async background tasks machinery
+│   │   ├── core/               # Logger, configuration, and exceptions
+│   │   └── main.py             # FastAPI application entry point
+│   ├── Dockerfile              # Docker containerization config
+│   ├── pyproject.toml          # Python dependencies config
+│   ├── requirements.txt        # Locked dependencies
+│   └── scripts/                # Helper utility scripts
 │
 ├── infra/
 │   └── docker/                 # Dockerfiles for client & server
