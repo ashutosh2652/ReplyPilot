@@ -109,13 +109,13 @@ export default function AppLayout() {
                 <span className="text-xs font-semibold text-white"> {user?.displayName || 'User'} </span>
                 <span className="text-[10px] text-green-500 font-medium">Creator</span>
               </div>
-              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#ff4444] to-[#ff8e8e] flex items-center justify-center text-xs font-bold border-2 border-[#30363d] cursor-pointer hover:shadow-[0_0_15px_rgba(255,68,68,0.4)] transition-all">
+              <Link to="/dashboard" className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#ff4444] to-[#ff8e8e] flex items-center justify-center text-xs font-bold border-2 border-[#30363d] cursor-pointer hover:shadow-[0_0_15px_rgba(255,68,68,0.4)] transition-all">
                 {user?.avatar ? (
                   <img src={user.avatar} alt={user.displayName} className="w-full h-full rounded-full object-cover" />
                 ) : (
                   <span>{user?.displayName?.charAt(0) || 'U'}</span>
                 )}
-              </div>
+              </Link>
             </div>
           </div>
         </header>
