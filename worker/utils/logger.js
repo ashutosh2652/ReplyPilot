@@ -61,18 +61,16 @@ const logger = winston.createLogger({
 });
 
 /*
-Console logging for development
+Console logging (always enabled for Railway/Docker to capture logs)
 */
-if (!isProduction) {
-  logger.add(
-    new winston.transports.Console({
-      format: combine(
-        colorize(),
-        timestamp(),
-        consoleFormat
-      ),
-    })
-  );
-}
+logger.add(
+  new winston.transports.Console({
+    format: combine(
+      colorize(),
+      timestamp(),
+      consoleFormat
+    ),
+  })
+);
 
 export default logger;
