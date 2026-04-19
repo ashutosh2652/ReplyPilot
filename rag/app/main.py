@@ -4,6 +4,7 @@ app/main.py — FastAPI application factory.
 
 from contextlib import asynccontextmanager
 
+import redis.asyncio as aioredis
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -20,6 +21,31 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     """Startup and shutdown logic."""
     logger.info("Starting YT-RAG API", env=settings.APP_ENV, version=settings.APP_VERSION)
+
+    # ── Redis connectivity check ───────────────────────────────────────────────
+    try:
+        client = aioredis.from_url(
+            settings.redis_url,
+            socket_connect_timeout=settings.REDIS_SOCKET_CONNECT_TIMEOUT,
+            socket_timeout=settings.REDIS_SOCKET_TIMEOUT,
+        )
+        await client.ping()
+        await client.aclose()
+        logger.info(
+            "Redis connection verified",
+            host=settings.REDIS_HOST,
+            port=settings.REDIS_PORT,
+            tls=settings.REDIS_USE_TLS,
+        )
+    except Exception as exc:
+        logger.error(
+            "Redis connection FAILED at startup — ingest/query will not work",
+            host=settings.REDIS_HOST,
+            port=settings.REDIS_PORT,
+            error=str(exc),
+        )
+        # Do NOT raise — let the app start so /health remains reachable for debugging
+
     yield
     logger.info("Shutting down YT-RAG API")
 
