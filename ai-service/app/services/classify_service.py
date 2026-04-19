@@ -20,7 +20,7 @@ logger = get_logger(__name__)
 
 # ── Load the fine-tuned intent classifier once (singleton) ────────────────────
 HF_REPO_ID = os.getenv("HF_REPO_ID")
-HF_TOKEN = os.getenv("HF_TOKEN")
+HF_CLASSIFIER_TOKEN = os.getenv("HF_CLASSIFIER_TOKEN")
 
 if HF_REPO_ID:
     MODEL_PATH = HF_REPO_ID
@@ -34,7 +34,7 @@ try:
         "text-classification", 
         model=MODEL_PATH, 
         tokenizer=MODEL_PATH,
-        token=HF_TOKEN
+        token=HF_CLASSIFIER_TOKEN
     )
     logger.info("Intent classifier loaded successfully", model_path=MODEL_PATH)
 except Exception as e:
