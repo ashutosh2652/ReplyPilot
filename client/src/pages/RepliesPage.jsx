@@ -388,6 +388,7 @@ export default function RepliesPage() {
 
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [batchPublishing, setBatchPublishing] = useState(false)
+  const [videoDropdownOpen, setVideoDropdownOpen] = useState(false)
 
   useEffect(() => { setSelectedIds(new Set()) }, [selectedVideoId, statusFilter])
 
@@ -496,28 +497,49 @@ export default function RepliesPage() {
         {/* Video Selection Card */}
         <div className="bg-[#0d1117] border border-[#30363d] rounded-2xl p-1 shadow-2xl">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1">
-            <div className="relative flex-1">
-              <select
-                value={selectedVideoId}
-                onChange={e => setSearchParams({ videoId: e.target.value })}
-                disabled={videosLoading}
-                className="w-full bg-transparent border-none focus:ring-0 px-5 py-4 text-sm text-white font-semibold appearance-none cursor-pointer"
+            <div className="relative flex-1" onClick={(e) => e.stopPropagation()}>
+              <div
+                onClick={() => !videosLoading && setVideoDropdownOpen(!videoDropdownOpen)}
+                className="w-full px-5 py-4 text-sm text-white font-semibold cursor-pointer flex items-center justify-between"
               >
-                {videosLoading ? (
-                  <option>Loading your videos...</option>
-                ) : videos.length === 0 ? (
-                  <option value="">No videos available</option>
-                ) : (
-                  videos.map(v => (
-                    <option key={v.videoId ?? v.id} value={v.videoId ?? v.id} className="bg-[#0d1117]">
-                      {v.title || 'Untitled Video'}
-                    </option>
-                  ))
-                )}
-              </select>
-              <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-[#484f58]">
-                ▼
+                <span className="truncate">
+                  {videosLoading
+                    ? 'Loading your videos...'
+                    : videos.length === 0
+                      ? 'No videos available'
+                      : (videos.find(v => (v.videoId ?? v.id) === selectedVideoId)?.title || 'Select a video')
+                  }
+                </span>
+                <span className={`text-[#484f58] text-xs transition-transform duration-200 ${videoDropdownOpen ? 'rotate-180' : ''}`}>▼</span>
               </div>
+
+              {videoDropdownOpen && videos.length > 0 && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setVideoDropdownOpen(false)} />
+                  <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-[#161b22] border border-[#30363d] rounded-xl shadow-2xl max-h-64 overflow-y-auto">
+                    {videos.map(v => {
+                      const vid = v.videoId ?? v.id
+                      const isActive = vid === selectedVideoId
+                      return (
+                        <div
+                          key={vid}
+                          onClick={() => {
+                            setSearchParams({ videoId: vid })
+                            setVideoDropdownOpen(false)
+                          }}
+                          className={`px-5 py-3 text-sm cursor-pointer transition-colors truncate ${
+                            isActive
+                              ? 'text-[#ff4444] bg-[#ff4444]/5 font-bold'
+                              : 'text-[#8b949e] hover:text-white hover:bg-[#1c2128]'
+                          }`}
+                        >
+                          {v.title || 'Untitled Video'}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </>
+              )}
             </div>
             
             <div className="hidden sm:block w-px h-8 bg-[#30363d]" />
