@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y build-essential && rm -rf /var/lib/apt/
 
 # Copy requirements and install
 COPY requirements.txt .
+RUN pip install --no-cache-dir torch==2.4.1 --index-url https://download.pytorch.org/whl/cpu
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Pre-download embedding models to save startup time (optional but recommended for sentence-transformers to avoid timeouts on Railway)
