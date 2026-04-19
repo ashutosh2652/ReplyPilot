@@ -27,6 +27,8 @@ app.use(cookieParser());
 
 app.use(requestLogger);
 
+app.set('trust proxy', 1);
+
 app.use(session({
   name: 'sid',
   store: new RedisStore({
@@ -42,7 +44,7 @@ app.use(session({
     httpOnly: true,
     secure: env.NODE_ENV === 'production',
     maxAge: 7 * 24 * 60 * 60 * 1000,
-    sameSite: 'lax',
+    sameSite: env.NODE_ENV === 'production' ? 'none' : 'lax',
   },
 }));
 
