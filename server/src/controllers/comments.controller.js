@@ -166,3 +166,54 @@ export const updateCommentIntent = async (req,res,next)=>{
   }
 };
 
+// ─── Global search across videos & comments ─────────────────────────────────
+
+export const searchAll = async (req, res, next) => {
+  try {
+    const { q } = req.query;
+    if (!q || !q.trim()) return res.json({ videos: [], comments: [] });
+
+    const userId = req.user._id;
+    const query = q.trim();
+    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(escaped, 'i');
+
+    const User = (await import('../models/User.models.js')).default;
+    const user = await User.findById(req.user._id).select('channelId').lean();
+    
+    // If the user hasn't synced a channel yet, return empty
+    if (!user || !user.channelId) {
+      return res.json({ videos: [], comments: [] });
+    }
+
+    const { channelId } = user;
+    const Video = (await import('../models/Video.models.js')).default;
+
+    const [videos, comments] = await Promise.all([
+      // Search only this user's videos via channelId
+      Video.find({ channelId, title: regex })
+        .select('videoId title thumbnail publishedAt viewCount commentCount')
+        .sort({ publishedAt: -1 })
+        .limit(5)
+        .lean(),
+      // Search comments only within this user's channel
+      Comment.find({
+        channelId,
+        $or: [
+          { text: regex },
+          { textDisplay: regex },
+          { authorName: regex },
+        ]
+      })
+        .select('_id videoId text textDisplay authorName publishedAt')
+        .sort({ publishedAt: -1 })
+        .limit(5)
+        .lean()
+    ]);
+
+    return res.json({ videos, comments });
+  } catch (err) {
+    next(err);
+  }
+};
+
