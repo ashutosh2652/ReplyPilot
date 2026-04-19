@@ -19,11 +19,22 @@ from app.core.logging import get_logger
 logger = get_logger(__name__)
 
 # ── Load the fine-tuned intent classifier once (singleton) ────────────────────
-MODEL_PATH = os.path.join(os.path.dirname(__file__), "../model_files")
+HF_REPO_ID = os.getenv("HF_REPO_ID")
+HF_TOKEN = os.getenv("HF_TOKEN")
+
+if HF_REPO_ID:
+    MODEL_PATH = HF_REPO_ID
+    logger.info("Using Hugging Face model", repo_id=HF_REPO_ID)
+else:
+    MODEL_PATH = os.path.join(os.path.dirname(__file__), "../model_files")
+    logger.info("Using local model", model_path=MODEL_PATH)
 
 try:
     classifier = hf_pipeline(
-        "text-classification", model=MODEL_PATH, tokenizer=MODEL_PATH
+        "text-classification", 
+        model=MODEL_PATH, 
+        tokenizer=MODEL_PATH,
+        token=HF_TOKEN
     )
     logger.info("Intent classifier loaded successfully", model_path=MODEL_PATH)
 except Exception as e:
