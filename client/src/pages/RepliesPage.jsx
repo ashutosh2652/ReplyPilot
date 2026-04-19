@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { getVideos } from '../api/channel'
-import { listReplies, approveReply, rejectReply, publishReply, publishBatch, editReply, regenerateReply } from '../api/replies'
+import { listReplies, approveReply, rejectReply, publishReply, publishBatch, editReply, regenerateReply, deleteReply } from '../api/replies'
 
 // ── Status config ─────────────────────────────────────────────────────────────
 const STATUS_STYLES = {
@@ -62,11 +62,11 @@ function StatusBadge({ status }) {
 }
 
 // ── Reply card ────────────────────────────────────────────────────────────────
-function ReplyCard({ reply, onUpdate, selected, onToggleSelect }) {
+function ReplyCard({ reply, selected, onToggleSelect, onUpdate, onDelete }) {
+  const [loading,   setLoading]   = useState(null)
   const [status,    setStatus]    = useState(reply.status)
   const [editing,   setEditing]   = useState(false)
-  const [editText,  setEditText]  = useState(reply.finalText || reply.generatedText || '')
-  const [loading,   setLoading]   = useState(null)
+  const [editText,  setEditText]  = useState(reply.finalText || reply.editedText || reply.generatedText || '')
   const [error,     setError]     = useState(null)
   const [showFull,  setShowFull]  = useState(false)
 
@@ -130,6 +130,20 @@ function ReplyCard({ reply, onUpdate, selected, onToggleSelect }) {
     } catch (e) {
       setError(e.response?.data?.error || 'AI service may be offline')
     } finally { setLoading(null) }
+  }
+
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
+  async function handleDelete() {
+    setConfirmDelete(false)
+    setLoading('delete'); setError(null)
+    try {
+      await deleteReply(reply._id)
+      onDelete(reply._id)
+    } catch (e) {
+      setError(e.response?.data?.error || 'Failed to delete')
+      setLoading(null)
+    }
   }
 
   const isLocked = ['published', 'publishing'].includes(status)
@@ -264,6 +278,21 @@ function ReplyCard({ reply, onUpdate, selected, onToggleSelect }) {
             </button>
           )}
 
+          {status === 'rejected' && (
+            <button
+              onClick={() => setConfirmDelete(true)}
+              disabled={!!loading}
+              title="Delete reply"
+              className="flex items-center justify-center w-8 h-8 text-rose-400 hover:text-white hover:bg-rose-600 rounded-lg transition-all disabled:opacity-40"
+            >
+              {loading === 'delete' ? <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" /> : (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              )}
+            </button>
+          )}
+
           <button
             onClick={handlePublish}
             disabled={!!loading || status === 'rejected'}
@@ -298,6 +327,46 @@ function ReplyCard({ reply, onUpdate, selected, onToggleSelect }) {
           <p className="text-[11px] font-bold uppercase tracking-wider text-[#484f58]">
             {status === 'published' ? 'Synced with YouTube' : 'Syncing to YouTube…'}
           </p>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {confirmDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setConfirmDelete(false)}>
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div
+            className="relative bg-[#161b22] border border-[#30363d] rounded-2xl p-6 w-full max-w-sm shadow-2xl animate-in fade-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center">
+                <svg className="w-5 h-5 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-white font-bold text-sm">Delete Reply</h3>
+                <p className="text-[#8b949e] text-xs">This action cannot be undone</p>
+              </div>
+            </div>
+            <p className="text-[#8b949e] text-xs leading-relaxed mb-6">
+              This will permanently remove the AI-generated reply from the review center. The original comment will remain untouched.
+            </p>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setConfirmDelete(false)}
+                className="flex-1 text-xs font-bold text-[#8b949e] hover:text-white bg-[#0d1117] border border-[#30363d] px-4 py-2.5 rounded-xl transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                className="flex-1 text-xs font-bold text-white bg-rose-600 hover:bg-rose-500 px-4 py-2.5 rounded-xl transition-all shadow-lg shadow-rose-600/20"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -556,7 +625,7 @@ export default function RepliesPage() {
                 </div>
               ) : (
                 filtered.map(reply => (
-                  <ReplyCard key={reply._id} reply={reply} onUpdate={handleUpdate} selected={selectedIds.has(reply._id)} onToggleSelect={toggleSelect} />
+                  <ReplyCard key={reply._id} reply={reply} onUpdate={handleUpdate} onDelete={(id) => setReplies(prev => prev.filter(r => r._id !== id))} selected={selectedIds.has(reply._id)} onToggleSelect={toggleSelect} />
                 ))
               )}
             </div>
