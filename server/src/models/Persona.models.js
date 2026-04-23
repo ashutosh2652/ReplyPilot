@@ -11,24 +11,24 @@ const PersonaSchema = new mongoose.Schema(
             type: String,
             required: true,
         },
-        tone: {
-            type: String,
-            enum: [
-                'friendly',
-                'professional',
-                'humorous',
-                'promotional',
-                'appreciative',
-                'informative',
-                'supportive',
-                'apologetic',
-                'neutral',
-                'romantic',
-                'rude',
-                'crazy'
-            ],
-            default: 'friendly'
-        },
+        // tone: {
+        //     type: String,
+        //     enum: [
+        //         'friendly',
+        //         'professional',
+        //         'humorous',
+        //         'promotional',
+        //         'appreciative',
+        //         'informative',
+        //         'supportive',
+        //         'apologetic',
+        //         'neutral',
+        //         'romantic',
+        //         'rude',
+        //         'crazy'
+        //     ],
+        //     default: 'friendly'
+        // },
         creatorBio: { type: String, default: null },
         icon: { type: String, default: '🎭' },
         isDefault: { type: Boolean, default: false }

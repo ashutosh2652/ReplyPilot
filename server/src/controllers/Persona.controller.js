@@ -3,7 +3,7 @@ import Persona from "../models/Persona.models.js";
 export async function createPersona(req, res, next) {
   try {
     const { name, tone, creatorBio, vocabulary, examples, isDefault } = req.body;
-    if (!name || !tone) return res.status(400).json({ error: 'name and tone are required' });
+    if (!name) return res.status(400).json({ error: 'name is required' });
 
     // If this is being set as default, unset all others for this user
     if (isDefault) {
