@@ -70,8 +70,6 @@ def _determine_routing(intent: str, is_spam: bool) -> str:
     """Decide the next step for the comment."""
     if is_spam:
         return "discard"
-    if intent == "criticism":
-        return "review"
     return "generate"
 
 
