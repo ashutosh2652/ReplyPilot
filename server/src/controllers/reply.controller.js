@@ -15,8 +15,8 @@ const VALID_TONES = [
   'romantic', 'rude', 'crazy',
 ];
 
-async function fetchFewShotExamples(videoId, intents = [], limit = 4) {
-  if (!videoId || !intents.length) return [];
+async function fetchFewShotExamples(videoId, tone, intents = [], limit = 4) {
+  if (!videoId || !tone || !intents.length) return [];
   try {
     const scoresMap = { question: 0, praise: 0, critism: 0, neutral: 0, spam: 0 };
     for (const intent of intents) {
@@ -27,11 +27,12 @@ async function fetchFewShotExamples(videoId, intents = [], limit = 4) {
     const scoresArray = [scoresMap.question, scoresMap.praise, scoresMap.critism, scoresMap.neutral, scoresMap.spam];
     if (scoresArray.every(s => s === 0)) return [];
 
-    // Cosine similarity aggregation directly against VideoExample
+    // Cosine similarity aggregation directly against VideoExample, scoped by tone
     const results = await VideoExample.aggregate([
       {
         $match: {
           videoId,
+          tone,
           $or: [
             { 'scores.question': { $gt: 0 } },
             { 'scores.praise': { $gt: 0 } },
@@ -193,7 +194,7 @@ export async function generateSingleReply(req, res, next) {
     }
 
     // 5. Fetch few-shot examples (video-scoped)
-    const fewShotExamples = await fetchFewShotExamples(comment.videoId, comment.intents);
+    const fewShotExamples = await fetchFewShotExamples(comment.videoId, tone, comment.intents);
 
     // 6. Call the FastAPI generate endpoint with enriched payload
     const aiResult = await generateReply({
@@ -382,11 +383,13 @@ export async function publishReply(req, res, next) {
       });
 
       const textToSave = comment.textDisplay || comment.text;
+      const exampleTone = reply.tone || 'friendly';
       if (textToSave) {
         await VideoExample.findOneAndUpdate(
-          { videoId: comment.videoId, commentText: textToSave, replyText: reply.finalText },
+          { videoId: comment.videoId, tone: exampleTone, commentText: textToSave, replyText: reply.finalText },
           {
             videoId: comment.videoId,
+            tone: exampleTone,
             commentText: textToSave,
             replyText: reply.finalText,
             scores
@@ -433,10 +436,11 @@ export async function publishBatch(req, res, next) {
           else if (scores[intent.label] !== undefined) scores[intent.label] = intent.confidence;
         });
         const textToSave = comment.textDisplay || comment.text;
+        const exampleTone = reply.tone || 'friendly';
         if (textToSave) {
           await VideoExample.findOneAndUpdate(
-            { videoId: comment.videoId, commentText: textToSave, replyText: reply.finalText },
-            { videoId: comment.videoId, commentText: textToSave, replyText: reply.finalText, scores },
+            { videoId: comment.videoId, tone: exampleTone, commentText: textToSave, replyText: reply.finalText },
+            { videoId: comment.videoId, tone: exampleTone, commentText: textToSave, replyText: reply.finalText, scores },
             { upsert: true, returnDocument: 'after' }
           );
         }
@@ -489,10 +493,11 @@ export async function createManualReply(req, res, next) {
     });
 
     const textToSave = comment.textDisplay || comment.text;
+    const exampleTone = 'friendly';
     if (textToSave) {
       await VideoExample.findOneAndUpdate(
-        { videoId: comment.videoId, commentText: textToSave, replyText: text.trim() },
-        { videoId: comment.videoId, commentText: textToSave, replyText: text.trim(), scores },
+        { videoId: comment.videoId, tone: exampleTone, commentText: textToSave, replyText: text.trim() },
+        { videoId: comment.videoId, tone: exampleTone, commentText: textToSave, replyText: text.trim(), scores },
         { upsert: true, returnDocument: 'after' }
       );
     }
@@ -568,7 +573,7 @@ export async function regenerateReply(req, res, next) {
         if (persona) creatorBio = persona.creatorBio || persona.description || null;
     }
 
-    const fewShotExamples = await fetchFewShotExamples(comment.videoId, comment.intents);
+    const fewShotExamples = await fetchFewShotExamples(comment.videoId, tone, comment.intents);
 
     const aiResult = await generateReply({
       commentId: reply.commentId.toString(),

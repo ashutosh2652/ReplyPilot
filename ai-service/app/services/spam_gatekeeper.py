@@ -43,11 +43,11 @@ class SpamGatekeeper:
             re.IGNORECASE,
         )
         self.phone_pattern = re.compile(r"(?:\+?\d{1,3}[\s\-.\(\)]?){4,}")
-        self.repeat_char_pattern = re.compile(r"(.)\1{5,}")
+        self.repeat_char_pattern = re.compile(r"(.)\1{9,}")
         self.emoji_spam_pattern = re.compile(
             r"[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF"
             r"\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF"
-            r"\U00002702-\U000027B0\U0000FE00-\U0000FE0F]{5,}"
+            r"\U00002702-\U000027B0\U0000FE00-\U0000FE0F]{10,}"
         )
 
         # ── Fast-lookup Sets (O(1)) ──────────────────────────────────────────
@@ -116,7 +116,7 @@ class SpamGatekeeper:
         raw_text = comment_text.strip()
 
         # ── LAYER 1: O(1) Quick Rejections ───────────────────────────────────
-        if len(raw_text) < 4:
+        if len(raw_text) < 2:
             return True, "too_short"
 
         lower_text = raw_text.lower()
@@ -163,12 +163,12 @@ class SpamGatekeeper:
             if alpha_len > 5:
                 # Vowel starvation (catches "hjksdfghjk")
                 vowel_count = len(re.findall(r"[aeiouy]", alpha_only))
-                if (vowel_count / alpha_len) < 0.10:
+                if (vowel_count / alpha_len) < 0.08:
                     return True, "vowel_starvation"
 
                 # Shannon entropy bounds
                 entropy = self._shannon_entropy(alpha_only)
-                if entropy < 1.5 or entropy > 4.8:
+                if entropy < 1.5 or entropy > 5.2:
                     return True, "entropy_anomaly"
 
         # ── LAYER 4: Stateful Bot Swarm Detection (Redis) ────────────────────

@@ -5,20 +5,17 @@ import { bullConnection } from '../config/redis.js';
 import Comment from '../models/Comment.models.js';
 import Reply from '../models/Reply.models.js';
 import Persona from '../models/Persona.models.js';
-import PersonaExample from '../models/PersonaExample.models.js';
+import VideoExample from '../models/VideoExample.models.js';
 import Video from '../models/Video.models.js';
 import httpClient from '../utils/httpClient.js';
 import logger from '../utils/logger.js';
 
-
-import axios from 'axios';
-
 /**
- * Fetch the top matching PersonaExamples using the server's API via cosine similarity
- * on the multi-label intent scores.
+ * Fetch the top matching VideoExamples using cosine similarity
+ * on multi-label intent scores, scoped by videoId and tone.
  */
-async function fetchFewShotExamples(personaId, intents = [], limit = 4) {
-  if (!personaId || !intents.length) return [];
+async function fetchFewShotExamples(videoId, tone, intents = [], limit = 4) {
+  if (!videoId || !tone || !intents.length) return [];
 
   try {
     // Build the scores vector [question, praise, critism, neutral, spam]
@@ -39,20 +36,102 @@ async function fetchFewShotExamples(personaId, intents = [], limit = 4) {
 
     if (scoresArray.every(s => s === 0)) return [];
 
-    const response = await axios.post(`http://localhost:5000/api/personas/${personaId}/similar-examples`, {
-      scores: scoresArray
-    });
+    const results = await VideoExample.aggregate([
+      {
+        $match: {
+          videoId,
+          tone,
+          $or: [
+            { 'scores.question': { $gt: 0 } },
+            { 'scores.praise': { $gt: 0 } },
+            { 'scores.critism': { $gt: 0 } },
+            { 'scores.neutral': { $gt: 0 } },
+            { 'scores.spam': { $gt: 0 } },
+          ],
+        },
+      },
+      {
+        $addFields: {
+          similarity: {
+            $let: {
+              vars: {
+                q: scoresArray,
+                d: [
+                  '$scores.question',
+                  '$scores.praise',
+                  '$scores.critism',
+                  '$scores.neutral',
+                  '$scores.spam',
+                ],
+              },
+              in: {
+                $divide: [
+                  {
+                    $sum: {
+                      $map: {
+                        input: { $range: [0, 5] },
+                        as: 'i',
+                        in: {
+                          $multiply: [
+                            { $arrayElemAt: ['$$q', '$$i'] },
+                            { $arrayElemAt: ['$$d', '$$i'] },
+                          ],
+                        },
+                      },
+                    },
+                  },
+                  {
+                    $max: [
+                      {
+                        $multiply: [
+                          {
+                            $sqrt: {
+                              $sum: {
+                                $map: {
+                                  input: '$$q',
+                                  as: 'x',
+                                  in: { $multiply: ['$$x', '$$x'] },
+                                },
+                              },
+                            },
+                          },
+                          {
+                            $sqrt: {
+                              $sum: {
+                                $map: {
+                                  input: '$$d',
+                                  as: 'x',
+                                  in: { $multiply: ['$$x', '$$x'] },
+                                },
+                              },
+                            },
+                          },
+                        ],
+                      },
+                      0.0001,
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+      { $match: { similarity: { $gte: 0.25 } } },
+      { $sort: { similarity: -1 } },
+      { $limit: limit },
+    ]);
 
-    const results = response.data?.data || [];
-    return results.slice(0, limit).map(r => ({
+    return results.map(r => ({
       comment_text: r.commentText,
       reply_text: r.replyText,
     }));
   } catch (err) {
-    logger.error(`Failed to fetch few-shot examples via API for persona ${personaId}:`, err.message);
+    logger.error(`Failed to fetch few-shot examples for video ${videoId} (tone: ${tone}):`, err.message);
     return [];
   }
 }
+
 
 
 export const generateWorker = new Worker(
@@ -92,14 +171,16 @@ export const generateWorker = new Worker(
         videoContext = `Title: ${vid.title || 'N/A'}. Description: ${(vid.description || '').slice(0, 500)}`;
       }
 
-      // 4. Fetch few-shot persona examples via cosine similarity
+      // 4. Fetch few-shot video examples via cosine similarity, scoped by tone
       // Use the intents from classification (passed via job data)
       const commentIntents = intents.length > 0
         ? intents
         : (comment.intents || []).map(i => ({ label: i.label, confidence: i.confidence }));
 
+      const effectiveTone = tone || 'friendly';
       const fewShotExamples = await fetchFewShotExamples(
-        effectivePersonaId,
+        videoId || comment.videoId,
+        effectiveTone,
         commentIntents,
       );
 

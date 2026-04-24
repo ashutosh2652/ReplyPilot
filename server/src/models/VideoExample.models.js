@@ -9,6 +9,16 @@ const VideoExampleSchema = new mongoose.Schema(
         },
         commentText: { type: String, required: true },
         replyText: { type: String, required: true },
+        tone: {
+            type: String,
+            required: true,
+            enum: [
+                'friendly', 'professional', 'humorous', 'promotional',
+                'appreciative', 'informative', 'supportive', 'apologetic',
+                'neutral', 'romantic', 'rude', 'crazy',
+            ],
+            index: true,
+        },
         scores: {
             question: { type: Number, default: 0, min: 0, max: 1 },
             praise: { type: Number, default: 0, min: 0, max: 1 },
@@ -20,9 +30,9 @@ const VideoExampleSchema = new mongoose.Schema(
     { timestamps: true },
 );
 
-// Prevent duplicate comment-reply pairs per video
+// Prevent duplicate comment-reply pairs per video per tone
 VideoExampleSchema.index(
-    { videoId: 1, commentText: 1, replyText: 1 },
+    { videoId: 1, tone: 1, commentText: 1, replyText: 1 },
     { unique: true }
 );
 
