@@ -63,6 +63,9 @@ class BatchManager:
         for batch_idx, sub_batch in enumerate(sub_batches):
             texts = [c.text_for_embedding for c in sub_batch]
             vectors = self._embed_with_retry(texts, batch_idx)
+            
+            # Immediately delete texts arrays to clear the string payload from RAM
+            del texts
 
             for chunk, vector in zip(sub_batch, vectors):
                 all_results.append(EmbeddingResult(
@@ -78,6 +81,11 @@ class BatchManager:
                 total_batches=len(sub_batches),
                 video_id=chunk_batch.video_id,
             )
+            
+            # Wipe generated vectors arrays and invoke PyTorch CPU garbage collection natively 
+            del vectors
+            import gc
+            gc.collect()
 
         return all_results
 
@@ -101,7 +109,14 @@ class BatchManager:
                     batch_size=self._batch_size,
                     show_progress_bar=False,
                 )
-                return [v.tolist() for v in vectors]
+                
+                # Convert standard tensors into Python floats then destroy the tensor representation entirely
+                converted_vectors = [v.tolist() for v in vectors]
+                del vectors
+                
+                import gc
+                gc.collect()
+                return converted_vectors
 
             except Exception as exc:
                 if attempt == _MAX_RETRIES:

@@ -2,6 +2,7 @@
 app/main.py — FastAPI application factory.
 """
 
+import asyncio
 from contextlib import asynccontextmanager
 
 import redis.asyncio as aioredis
@@ -12,6 +13,7 @@ from app.api.middleware.error_handler import register_error_handlers
 from app.api.routes import health, ingest, query
 from app.core.config import get_settings
 from app.core.logger import get_logger
+from app.pipeline.embedding.bge_embedder import BGEEmbedder
 
 logger = get_logger(__name__)
 settings = get_settings()
@@ -21,6 +23,10 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     """Startup and shutdown logic."""
     logger.info("Starting YT-RAG API", env=settings.APP_ENV, version=settings.APP_VERSION)
+
+    # ── Background Model Loading ──────────────────────────────────────────────
+    logger.info("Triggering background model load to prevent cold-start delays")
+    asyncio.create_task(asyncio.to_thread(BGEEmbedder()._load_model))
 
     # ── Redis connectivity check ───────────────────────────────────────────────
     try:

@@ -207,15 +207,21 @@ async def ingest_video(
                 request_id=request_id,
             )
 
-    background_tasks.add_task(
-        _run_ingest_pipeline,
-        video_id=body.video_id,
-        video_title=body.video_title,
-        channel_name=body.channel_name,
-        chunk_window_seconds=body.chunk_window_seconds,
-        force_reindex=body.force_reindex,
-        request_id=request_id,
-    )
+    import json
+    import redis.asyncio as aioredis
+    client = aioredis.from_url(settings.redis_url)
+    
+    payload = {
+        "video_id": body.video_id,
+        "video_title": body.video_title,
+        "channel_name": body.channel_name,
+        "chunk_window_seconds": body.chunk_window_seconds,
+        "force_reindex": body.force_reindex,
+        "request_id": request_id,
+    }
+    
+    await client.lpush(settings.REDIS_INGEST_QUEUE_KEY, json.dumps(payload))
+    await client.aclose()
 
     logger.info(
         "Ingest accepted",
@@ -262,6 +268,7 @@ async def ingest_batch(
         raise InvalidRequestError(message="All provided video_ids were duplicates.")
 
     # Bulk check which are already indexed
+    import json
     import redis.asyncio as aioredis
     client = aioredis.from_url(settings.redis_url)
     pipe = client.pipeline()
@@ -278,15 +285,15 @@ async def ingest_batch(
             skipped.append(video.video_id)
             continue
 
-        background_tasks.add_task(
-            _run_ingest_pipeline,
-            video_id=video.video_id,
-            video_title=video.video_title,
-            channel_name=video.channel_name,
-            chunk_window_seconds=video.chunk_window_seconds,
-            force_reindex=video.force_reindex,
-            request_id=request_id,
-        )
+        payload = {
+            "video_id": video.video_id,
+            "video_title": video.video_title,
+            "channel_name": video.channel_name,
+            "chunk_window_seconds": video.chunk_window_seconds,
+            "force_reindex": video.force_reindex,
+            "request_id": request_id,
+        }
+        await client.lpush(settings.REDIS_INGEST_QUEUE_KEY, json.dumps(payload))
         accepted.append(video.video_id)
 
     logger.info(

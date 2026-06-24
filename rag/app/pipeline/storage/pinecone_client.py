@@ -102,6 +102,10 @@ class PineconeVectorStore:
 
         return self._index
 
+    async def _get_index_async(self) -> Any:
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self._get_index)
+
     # ── Upsert ────────────────────────────────────────────────────────────────
 
     async def upsert(self, records: list[VectorRecord]) -> UpsertResult:
@@ -118,7 +122,7 @@ class PineconeVectorStore:
         Raises:
             PineconeUpsertError: if any batch fails after retries.
         """
-        index = self._get_index()
+        index = await self._get_index_async()
         video_id = records[0].metadata.get("video_id", "unknown") if records else "unknown"
 
         # Split into Pinecone-safe batch sizes
@@ -200,7 +204,7 @@ class PineconeVectorStore:
             PineconeQueryError:        search call fails.
             PineconeIndexNotFoundError: index doesn't exist yet.
         """
-        index = self._get_index()
+        index = await self._get_index_async()
         filter_expr = {"video_id": {"$eq": video_id}} if video_id else None
 
         loop = asyncio.get_event_loop()
@@ -237,7 +241,7 @@ class PineconeVectorStore:
         Deletes all vectors for a specific video from Pinecone.
         Called when force_reindex=True so old chunks don't accumulate.
         """
-        index = self._get_index()
+        index = await self._get_index_async()
         loop = asyncio.get_event_loop()
         try:
             await loop.run_in_executor(

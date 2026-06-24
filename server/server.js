@@ -23,9 +23,10 @@ async function startServer() {
                 console.log("Error!!", error);
                 throw error;
             });
-            server = app.listen(process.env.PORT||env.PORT||3000, () => {
+            const port = process.env.PORT || env.PORT || 3000;
+            server = app.listen(port, () => {
                 console.log(
-                    `Server running on port:${env.PORT}`
+                    `Server running on port:${port}`
                 );
             });
             return; // success — exit the retry loop

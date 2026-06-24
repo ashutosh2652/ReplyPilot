@@ -11,6 +11,8 @@ Flow:
   5. Returns the filtered list to query_service.py
 """
 
+import asyncio
+
 from app.core.config import get_settings
 from app.core.exceptions import NoRelevantChunksError, PineconeQueryError
 from app.core.logger import get_logger
@@ -60,7 +62,8 @@ class Searcher:
         _threshold = score_threshold if score_threshold is not None else settings.RETRIEVAL_SCORE_THRESHOLD
 
         # Step 1: Embed the question
-        vector = self._embedder.embed(question)
+        loop = asyncio.get_event_loop()
+        vector = await loop.run_in_executor(None, self._embedder.embed, question)
 
         # Step 2: Query Pinecone
         # Fetch slightly more than top_k so threshold filtering

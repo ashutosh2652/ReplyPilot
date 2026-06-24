@@ -61,7 +61,7 @@ class Settings(BaseSettings):
     #   "BAAI/bge-large-en-v1.5"  — slower, 1024-dim, better quality, English only
     #   "BAAI/bge-m3"             — slowest, 1024-dim, multilingual (use for Hinglish)
     BGE_DEVICE: Literal["cpu", "cuda", "mps"] = "cpu"
-    BGE_BATCH_SIZE: int = 32               # chunks per embedding batch
+    BGE_BATCH_SIZE: int = 8                # chunks per embedding batch
     BGE_MAX_SEQUENCE_LENGTH: int = 512     # tokens — hard limit for all BGE models
     BGE_NORMALIZE_EMBEDDINGS: bool = True  # required for cosine similarity
 

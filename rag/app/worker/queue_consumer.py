@@ -179,6 +179,9 @@ class QueueConsumer:
                 await client.lpush(PROCESSING_LIST, raw_payload)
 
                 await self._process_job(raw_payload)
+                
+                # Requested by user: wait 100 milliseconds between processing queue items
+                await asyncio.sleep(0.1)
 
             except (aioredis.ConnectionError, aioredis.TimeoutError, ConnectionResetError) as exc:
                 logger.warning("Redis connection lost — reconnecting", error=str(exc))

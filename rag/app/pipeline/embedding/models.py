@@ -4,7 +4,7 @@ app/pipeline/embedding/models.py
 Data models for the embedding stage.
 """
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class EmbeddingResult(BaseModel):
@@ -16,6 +16,8 @@ class EmbeddingResult(BaseModel):
 
 class EmbeddingBatch(BaseModel):
     """Embedding outputs for a full batch of chunks."""
+    model_config = ConfigDict(protected_namespaces=())
+    
     video_id: str
     results: list[EmbeddingResult]
     model_name: str              # e.g. "BAAI/bge-base-en-v1.5"

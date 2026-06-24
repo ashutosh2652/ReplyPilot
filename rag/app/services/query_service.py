@@ -11,6 +11,8 @@ The route layer only deals with HTTP request/response shapes;
 all retrieval decisions live here.
 """
 
+import asyncio
+
 from app.core.config import get_settings
 from app.core.logger import get_logger
 from app.retrieval.reranker import Reranker
@@ -91,7 +93,11 @@ class QueryService:
 
         # Step 2: Optional reranking
         if settings.RERANKER_ENABLED:
-            matches = self._reranker.rerank(question=question, matches=matches)
+            loop = asyncio.get_event_loop()
+            matches = await loop.run_in_executor(
+                None, 
+                lambda p=(question, matches): self._reranker.rerank(*p)
+            )
             # After rerank, trim again to requested top_k
             matches = matches[:_top_k]
 

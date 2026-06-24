@@ -21,6 +21,7 @@ Loading a 400MB+ model per request would be unusably slow.
 
 from __future__ import annotations
 
+import gc
 import threading
 from typing import ClassVar
 
@@ -55,6 +56,7 @@ class BGEEmbedder(EmbeddingProvider):
 
     _instance: ClassVar[BGEEmbedder | None] = None
     _lock: ClassVar[threading.Lock] = threading.Lock()
+    _execution_lock: ClassVar[threading.Lock] = threading.Lock()
     _model: SentenceTransformer | None = None
 
     def __new__(cls) -> BGEEmbedder:
@@ -117,11 +119,17 @@ class BGEEmbedder(EmbeddingProvider):
         Internally uses BatchManager to split into sub-batches and handle retries.
         """
         model = self._load_model()
-        manager = BatchManager(
-            model=model,
-            batch_size=settings.BGE_BATCH_SIZE,
-        )
-        results: list[EmbeddingResult] = manager.embed(batch)
+        with self._execution_lock:
+            manager = BatchManager(
+                model=model,
+                batch_size=settings.BGE_BATCH_SIZE,
+            )
+            results: list[EmbeddingResult] = manager.embed(batch)
+            
+            # Explicitly force garbage collection to immediately free chunks 
+            # and tensor allocations within the worker thread
+            del manager
+            gc.collect()
 
         logger.info(
             "Chunks embedded",
@@ -146,11 +154,12 @@ class BGEEmbedder(EmbeddingProvider):
         model = self._load_model()
         try:
             prefixed = _BGE_QUERY_PREFIX + text.strip()
-            vector = model.encode(
-                [prefixed],
-                normalize_embeddings=settings.BGE_NORMALIZE_EMBEDDINGS,
-                batch_size=1,
-            )
+            with self._execution_lock:
+                vector = model.encode(
+                    [prefixed],
+                    normalize_embeddings=settings.BGE_NORMALIZE_EMBEDDINGS,
+                    batch_size=1,
+                )
             return vector[0].tolist()
         except Exception as exc:
             raise QueryEmbeddingError(

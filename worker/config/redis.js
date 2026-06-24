@@ -6,7 +6,7 @@ import logger from "../utils/logger.js";
 
 let redisOptions = {
   username: env.REDIS_USERNAME,
-  password: env.REDIS_PASSWORD,
+  password: env.REDIS_PASSWORD || undefined,
   socket: {
     host: env.REDIS_URL,
     port: parseInt(env.REDIS_PORT),
@@ -37,7 +37,7 @@ export const bullConnection = (env.REDIS_URL.startsWith('redis://') || env.REDIS
       host: env.REDIS_URL,
       port: parseInt(env.REDIS_PORT),
       username: env.REDIS_USERNAME,
-      password: env.REDIS_PASSWORD,
+      password: env.REDIS_PASSWORD || undefined,
       ...bullOptions
     });
 

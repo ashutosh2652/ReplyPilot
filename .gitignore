@@ -60,3 +60,7 @@ docker-compose.override.yml
 # Personal prep 
 interview_prep_guide.md
 graphify-out
+
+# Local setup files
+commands.txt
+run_all.ps1

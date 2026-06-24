@@ -18,6 +18,8 @@ The orchestrator is the ONLY file that knows the stage sequence.
 Individual stages are completely unaware of each other.
 """
 
+import asyncio
+
 from app.core.exceptions import TranscriptAlreadyIndexedError
 from app.core.logger import get_logger
 from app.pipeline.chunking.context_builder import build_context
@@ -131,7 +133,12 @@ class IngestOrchestrator:
             video_id=video_id,
             total_chunks=enriched_batch.total_chunks,
         )
-        embedding_batch = self._embedder.embed_chunks(enriched_batch)
+        loop = asyncio.get_event_loop()
+        embedding_batch = await loop.run_in_executor(
+            None, 
+            self._embedder.embed_chunks, 
+            enriched_batch
+        )
 
         # ── Stage 7: Build Pinecone records ───────────────────────────────────
         logger.info("Stage 7: Building vector records", video_id=video_id)
