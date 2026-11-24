@@ -18,8 +18,10 @@ class Settings(BaseSettings):
     APP_ENV: Literal["development", "staging", "production"] = "development"
     DEBUG: bool = False
 
-    # ── HuggingFace ───────────────────────────────────────────────────────────
+    # ── LLM (Groq / HuggingFace) ──────────────────────────────────────────────
     HF_TOKEN: str = ""
+    GROQ_API_KEY: str = ""
+    LLM_MODEL_NAME: str = "llama-3.1-8b-instant"
 
     # ── RAG Service ───────────────────────────────────────────────────────────
     RAG_SERVICE_URL: str = "http://localhost:8001"
